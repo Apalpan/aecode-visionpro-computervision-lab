@@ -1,8 +1,9 @@
 /**
- * JarvisHUD — interfaz HUD futurista (estilo Jarvis / Vision Pro).
+ * JarvisHUD — interfaz HUD futurista (núcleo Aecodito).
  *
  *  Capas: barra superior (logo + selector de modo + toggles), esquineros,
- *  escáner circular, retícula que sigue la mano, y panel de telemetría.
+ *  escáner circular, retícula que sigue la mano, "nivel de poder" (en cámara)
+ *  y panel de telemetría. La "vista limpia" oculta los paneles para más espacio.
  */
 import { useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
@@ -10,7 +11,7 @@ import { assets, onImgError } from '../lib/assetFinder'
 import type { Reticle as ReticleData, Telemetry, CoreAction } from '../hooks/useGestureControls'
 import type { TrackingMode, TrackingStatus } from '../hooks/useHandTracking'
 
-type ViewMode = 'jarvis' | 'camera'
+type ViewMode = 'aecodito' | 'camera'
 
 interface Props {
   telemetry: Telemetry
@@ -20,8 +21,11 @@ interface Props {
   view: ViewMode
   fps: number
   debug: boolean
+  clean: boolean
+  power: number | null
   faceEnabled: boolean
   onToggleDebug: () => void
+  onToggleClean: () => void
   onToggleFace: () => void
   onSwitchMode: (target: ViewMode) => void
   onStop: () => void
@@ -44,17 +48,23 @@ export default function JarvisHUD({
   view,
   fps,
   debug,
+  clean,
+  power,
   faceEnabled,
   onToggleDebug,
+  onToggleClean,
   onToggleFace,
   onSwitchMode,
   onStop,
 }: Props) {
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 30, pointerEvents: 'none' }}>
-      <Scanner />
-      <CornerBrackets />
+      {!clean && <Scanner />}
+      {!clean && <CornerBrackets />}
       <Reticle reticleRef={reticleRef} />
+
+      {/* Nivel de poder (cámara) */}
+      {power != null && <PowerLevel value={power} />}
 
       {/* ── Barra superior ───────────────────────────────────────────────── */}
       <div className="absolute left-0 right-0 top-0 flex items-start justify-between gap-3 p-4 sm:p-6">
@@ -75,9 +85,7 @@ export default function JarvisHUD({
             <div className="font-display text-sm font-semibold tracking-wide text-ink">
               VisionPro <span className="text-neon">Lab</span>
             </div>
-            <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted">
-              Red Neuronal
-            </div>
+            <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted">Red Neuronal</div>
           </div>
         </motion.div>
 
@@ -85,10 +93,9 @@ export default function JarvisHUD({
           initial={{ opacity: 0, y: -12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
-          className="flex max-w-[70vw] flex-wrap items-center justify-end gap-2"
+          className="flex max-w-[74vw] flex-wrap items-center justify-end gap-2"
           style={{ pointerEvents: 'auto' }}
         >
-          {/* Badge de estado */}
           <div className="glass flex items-center gap-2 rounded-full px-3 py-1.5">
             <span className="relative flex h-2.5 w-2.5">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-core opacity-70" />
@@ -99,10 +106,8 @@ export default function JarvisHUD({
             </span>
           </div>
 
-          {/* Selector de modo */}
           <ModeSwitch view={view} onSwitch={onSwitchMode} />
 
-          {/* Toggle de rostro (solo en cámara) */}
           {view === 'camera' && (
             <button
               onClick={onToggleFace}
@@ -114,6 +119,30 @@ export default function JarvisHUD({
               Rostro {faceEnabled ? 'ON' : 'OFF'}
             </button>
           )}
+
+          <button
+            onClick={onToggleClean}
+            aria-pressed={clean}
+            aria-label="Mostrar u ocultar paneles"
+            className={`glass flex items-center gap-1.5 rounded-full px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] transition ${
+              clean ? 'text-neon shadow-neon' : 'text-muted hover:text-ink'
+            }`}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              {clean ? (
+                <>
+                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20C5 20 1 12 1 12a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+                  <line x1="1" y1="1" x2="23" y2="23" />
+                </>
+              ) : (
+                <>
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                  <circle cx="12" cy="12" r="3" />
+                </>
+              )}
+            </svg>
+            {clean ? 'Mostrar' : 'Ocultar'}
+          </button>
 
           <button
             onClick={onToggleDebug}
@@ -135,46 +164,48 @@ export default function JarvisHUD({
         </motion.div>
       </div>
 
-      {/* ── Telemetría inferior ──────────────────────────────────────────── */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
-        className="absolute bottom-4 left-1/2 w-[min(92vw,720px)] -translate-x-1/2 sm:bottom-6"
-      >
-        <div className="glass rounded-2xl px-4 py-3 sm:px-5 sm:py-4">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted">
-                Estado de la red neuronal
+      {/* ── Telemetría inferior (oculta en vista limpia) ─────────────────── */}
+      {!clean && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+          className="absolute bottom-4 left-1/2 w-[min(92vw,720px)] -translate-x-1/2 sm:bottom-6"
+        >
+          <div className="glass rounded-2xl px-4 py-3 sm:px-5 sm:py-4">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted">
+                  Estado de la red neuronal
+                </div>
+                <div
+                  className={`font-display text-xl font-bold sm:text-2xl ${
+                    telemetry.action === 'idle' ? 'text-ink' : 'text-neon text-glow'
+                  }`}
+                >
+                  {ACTION_LABEL[telemetry.action]}
+                </div>
               </div>
-              <div
-                className={`font-display text-xl font-bold sm:text-2xl ${
-                  telemetry.action === 'idle' ? 'text-ink' : 'text-neon text-glow'
-                }`}
-              >
-                {ACTION_LABEL[telemetry.action]}
+              <div className="grid grid-cols-3 gap-3 text-right sm:gap-5">
+                <Stat label="Manos" value={String(telemetry.handCount)} />
+                <Stat label="Escala" value={`${telemetry.scale.toFixed(2)}×`} />
+                <Stat label="FPS" value={String(fps || '—')} />
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-3 text-right sm:gap-5">
-              <Stat label="Manos" value={String(telemetry.handCount)} />
-              <Stat label="Escala" value={`${telemetry.scale.toFixed(2)}×`} />
-              <Stat label="FPS" value={String(fps || '—')} />
-            </div>
-          </div>
 
-          <div className="mt-3 grid grid-cols-2 gap-3 sm:gap-5">
-            <Meter label="Confianza" value={telemetry.confidence} accent="electric" />
-            <Meter label="Energía" value={telemetry.energy} accent="core" />
+            <div className="mt-3 grid grid-cols-2 gap-3 sm:gap-5">
+              <Meter label="Confianza" value={telemetry.confidence} accent="electric" />
+              <Meter label="Energía" value={telemetry.energy} accent="core" />
+            </div>
           </div>
-        </div>
-      </motion.div>
+        </motion.div>
+      )}
     </div>
   )
 }
 
 function statusLabel(status: TrackingStatus, mode: TrackingMode, view: ViewMode): string {
-  if (view === 'jarvis') return 'NÚCLEO JARVIS'
+  if (view === 'aecodito') return 'NÚCLEO AECODITO'
   if (mode === 'mouse') return 'AI VISION · MOUSE'
   switch (status) {
     case 'requesting-camera':
@@ -190,9 +221,45 @@ function statusLabel(status: TrackingStatus, mode: TrackingMode, view: ViewMode)
   }
 }
 
+/* ── Nivel de poder (estilo "scouter" elegante) ──────────────────────────── */
+function PowerLevel({ value }: { value: number }) {
+  const frac = Math.max(0, Math.min(1, (value - 135) / 10))
+  const bars = 7
+  const lit = Math.round(frac * bars)
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+      className="pointer-events-none absolute left-1/2 top-[4.5rem] -translate-x-1/2 sm:top-24"
+    >
+      <div className="glass flex items-center gap-3 rounded-2xl px-5 py-2.5">
+        <div className="text-right leading-none">
+          <div className="font-mono text-[8.5px] uppercase tracking-[0.26em] text-muted">Nivel de poder</div>
+          <div className="tabular font-display text-[26px] font-bold text-ink text-glow">{Math.round(value)}</div>
+        </div>
+        <div className="h-9 w-px bg-line" />
+        <div className="flex h-9 items-end gap-[3px]">
+          {Array.from({ length: bars }).map((_, i) => (
+            <span
+              key={i}
+              className="w-[3px] rounded-full transition-all duration-150"
+              style={{
+                height: `${30 + i * 9}%`,
+                background: i < lit ? 'var(--core)' : 'rgba(255,255,255,0.12)',
+                boxShadow: i < lit ? '0 0 8px var(--core)' : 'none',
+              }}
+            />
+          ))}
+        </div>
+      </div>
+    </motion.div>
+  )
+}
+
 function ModeSwitch({ view, onSwitch }: { view: ViewMode; onSwitch: (t: ViewMode) => void }) {
   const items: Array<{ id: ViewMode; label: string }> = [
-    { id: 'jarvis', label: 'Jarvis' },
+    { id: 'aecodito', label: 'Aecodito' },
     { id: 'camera', label: 'Cámara' },
   ]
   return (
@@ -247,7 +314,6 @@ function Meter({ label, value, accent }: { label: string; value: number; accent:
   )
 }
 
-/* ── Retícula que sigue la mano (rAF, sin re-render) ─────────────────────── */
 function Reticle({ reticleRef }: { reticleRef: React.MutableRefObject<ReticleData> }) {
   const ref = useRef<HTMLDivElement>(null)
   const ringRef = useRef<HTMLDivElement>(null)
@@ -291,10 +357,7 @@ function Reticle({ reticleRef }: { reticleRef: React.MutableRefObject<ReticleDat
     >
       <div style={{ position: 'absolute', left: '50%', top: 0, bottom: 0, width: 1, background: 'var(--neon-dim)', transform: 'translateX(-50%)' }} />
       <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, height: 1, background: 'var(--neon-dim)', transform: 'translateY(-50%)' }} />
-      <div
-        ref={ringRef}
-        style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '2px solid var(--neon)', boxShadow: '0 0 16px var(--neon-soft)' }}
-      />
+      <div ref={ringRef} style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '2px solid var(--neon)', boxShadow: '0 0 16px var(--neon-soft)' }} />
       <div style={{ position: 'absolute', left: '50%', top: '50%', width: 5, height: 5, borderRadius: '50%', background: 'var(--core)', transform: 'translate(-50%,-50%)', boxShadow: '0 0 10px var(--core)' }} />
     </div>
   )

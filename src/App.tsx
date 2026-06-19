@@ -1,10 +1,11 @@
 /**
  * App — orquestador de AECODE VisionPro Lab.
- *  · Inicio: eliges MODO JARVIS (solo el núcleo neuronal, sin cámara, mouse) o
+ *  · Inicio: eliges MODO AECODITO (solo el núcleo neuronal, sin cámara, mouse) o
  *    MODO INTERACTIVO (cámara + manos + detección facial).
- *  · Activo: red neuronal manipulable + HUD; puedes cambiar de modo en caliente.
+ *  · Activo: red neuronal manipulable + HUD; cambio de modo en caliente, vista
+ *    limpia (ocultar paneles) y "nivel de poder" en cámara.
  */
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useHandTracking } from './hooks/useHandTracking'
 import { useGestureControls } from './hooks/useGestureControls'
@@ -17,21 +18,27 @@ import JarvisHUD from './components/JarvisHUD'
 import GesturePanel from './components/GesturePanel'
 
 type Phase = 'intro' | 'active'
-export type ViewMode = 'jarvis' | 'camera'
+export type ViewMode = 'aecodito' | 'camera'
 
 export default function App() {
   const [phase, setPhase] = useState<Phase>('intro')
   const [view, setView] = useState<ViewMode>('camera')
   const [debug, setDebug] = useState(false)
+  const [clean, setClean] = useState(false)
+  const [power, setPower] = useState(140)
+  const powerRef = useRef(140)
+  const energyRef = useRef(0)
+
   const tracking = useHandTracking()
   const { mv, telemetry, reticleRef, BOX } = useGestureControls(
     tracking.handsRef,
     tracking.mode,
     phase === 'active',
   )
+  energyRef.current = telemetry.energy
 
-  const startJarvis = useCallback(() => {
-    setView('jarvis')
+  const startAecodito = useCallback(() => {
+    setView('aecodito')
     setPhase('active')
     tracking.startMouse()
   }, [tracking])
@@ -45,9 +52,9 @@ export default function App() {
   const switchMode = useCallback(
     async (target: ViewMode) => {
       if (target === view) return
-      if (target === 'jarvis') {
+      if (target === 'aecodito') {
         tracking.stop()
-        setView('jarvis')
+        setView('aecodito')
         tracking.startMouse()
       } else {
         setView('camera')
@@ -61,6 +68,26 @@ export default function App() {
     tracking.stop()
     setPhase('intro')
   }, [tracking])
+
+  // ── Nivel de poder (135–145), sube con la interacción. Solo en cámara. ────
+  useEffect(() => {
+    if (phase !== 'active' || view !== 'camera') return
+    let raf = 0
+    let last = 0
+    const loop = () => {
+      const now = performance.now()
+      const base = 140 + Math.sin(now / 700) * 3 + Math.sin(now / 233) * 1.3 + energyRef.current * 3
+      const v = Math.max(135, Math.min(145, base))
+      powerRef.current = v
+      if (now - last > 110) {
+        last = now
+        setPower(v)
+      }
+      raf = requestAnimationFrame(loop)
+    }
+    raf = requestAnimationFrame(loop)
+    return () => cancelAnimationFrame(raf)
+  }, [phase, view])
 
   const initializing =
     phase === 'active' &&
@@ -81,7 +108,7 @@ export default function App() {
 
       <AnimatePresence mode="wait">
         {phase === 'intro' ? (
-          <Intro key="intro" onJarvis={startJarvis} onCamera={startCamera} />
+          <Intro key="intro" onAecodito={startAecodito} onCamera={startCamera} />
         ) : (
           <motion.div
             key="active"
@@ -100,9 +127,9 @@ export default function App() {
             <ParticleField mv={mv} box={BOX} />
             <NeuralNetwork mv={mv} box={BOX} />
             {view === 'camera' && tracking.faceEnabled && (
-              <FaceTracker facesRef={tracking.facesRef} mode={tracking.mode} />
+              <FaceTracker facesRef={tracking.facesRef} mode={tracking.mode} powerRef={powerRef} />
             )}
-            <GesturePanel telemetry={telemetry} mouse={isMouse} />
+            {!clean && <GesturePanel telemetry={telemetry} mouse={isMouse} />}
             <JarvisHUD
               telemetry={telemetry}
               reticleRef={reticleRef}
@@ -111,8 +138,11 @@ export default function App() {
               view={view}
               fps={tracking.fps}
               debug={debug}
+              clean={clean}
+              power={view === 'camera' ? power : null}
               faceEnabled={tracking.faceEnabled}
               onToggleDebug={() => setDebug((d) => !d)}
+              onToggleClean={() => setClean((c) => !c)}
               onToggleFace={() => tracking.setFaceEnabled(!tracking.faceEnabled)}
               onSwitchMode={switchMode}
               onStop={exit}
@@ -154,17 +184,19 @@ export default function App() {
             </AnimatePresence>
 
             {/* Hint inicial */}
-            <motion.p
-              key={view + String(isMouse)}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: [0, 1, 1, 0] }}
-              transition={{ duration: 6, times: [0, 0.1, 0.85, 1], delay: 0.8 }}
-              className="pointer-events-none absolute left-1/2 top-[26%] z-30 -translate-x-1/2 text-center font-mono text-xs uppercase tracking-[0.2em] text-neon/80"
-            >
-              {isMouse
-                ? 'Click para agarrar el núcleo · arrastra para mover · rueda para escalar'
-                : 'Pellizca cerca de la red para agarrarla · abre la mano para escalar'}
-            </motion.p>
+            {!clean && (
+              <motion.p
+                key={view + String(isMouse)}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: [0, 1, 1, 0] }}
+                transition={{ duration: 6, times: [0, 0.1, 0.85, 1], delay: 0.8 }}
+                className="pointer-events-none absolute left-1/2 top-[26%] z-30 -translate-x-1/2 text-center font-mono text-xs uppercase tracking-[0.2em] text-neon/80"
+              >
+                {isMouse
+                  ? 'Click para agarrar el núcleo · arrastra para mover · rueda para escalar'
+                  : 'Pellizca cerca de la red para agarrarla · abre la mano para escalar'}
+              </motion.p>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
@@ -175,7 +207,7 @@ export default function App() {
 /* ════════════════════════════════════════════════════════════════════════
    Pantalla de inicio con selector de modo
    ════════════════════════════════════════════════════════════════════════ */
-function Intro({ onJarvis, onCamera }: { onJarvis: () => void; onCamera: () => void }) {
+function Intro({ onAecodito, onCamera }: { onAecodito: () => void; onCamera: () => void }) {
   return (
     <motion.section
       initial={{ opacity: 0 }}
@@ -184,7 +216,6 @@ function Intro({ onJarvis, onCamera }: { onJarvis: () => void; onCamera: () => v
       transition={{ duration: 0.6 }}
       className="absolute inset-0 grid place-items-center overflow-y-auto px-6 py-10"
     >
-      {/* Escáner ambiental detrás de la red */}
       <div
         aria-hidden
         className="pointer-events-none absolute left-1/2 top-[30%] -translate-x-1/2 -translate-y-1/2"
@@ -205,7 +236,6 @@ function Intro({ onJarvis, onCamera }: { onJarvis: () => void; onCamera: () => v
           className="mb-6 h-7 w-auto opacity-90 drop-shadow-[0_0_14px_var(--neon-soft)] sm:h-8"
         />
 
-        {/* Red neuronal (hero) */}
         <motion.div
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -233,7 +263,6 @@ function Intro({ onJarvis, onCamera }: { onJarvis: () => void; onCamera: () => v
           Red Neuronal + Computer Vision + Gesture Control
         </motion.p>
 
-        {/* Selector de modo */}
         <motion.div
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
@@ -241,9 +270,9 @@ function Intro({ onJarvis, onCamera }: { onJarvis: () => void; onCamera: () => v
           className="mt-9 grid w-full max-w-2xl grid-cols-1 gap-4 sm:grid-cols-2"
         >
           <ModeCard
-            onClick={onJarvis}
+            onClick={onAecodito}
             accent="neon"
-            title="Modo Jarvis"
+            title="Modo Aecodito"
             desc="Solo el núcleo neuronal. Sin cámara. Contrólalo con el mouse: click para agarrar, arrastra para mover, rueda para escalar."
             icon={
               <>
@@ -315,10 +344,7 @@ function ModeCard({
       </span>
       <span className="font-display text-lg font-bold text-ink">{title}</span>
       <span className="text-[12.5px] leading-snug text-muted">{desc}</span>
-      <span
-        className="mt-1 inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-[0.18em]"
-        style={{ color }}
-      >
+      <span className="mt-1 inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-[0.18em]" style={{ color }}>
         Entrar →
       </span>
     </button>

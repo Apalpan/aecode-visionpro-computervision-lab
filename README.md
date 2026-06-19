@@ -2,7 +2,7 @@
 
 > **Red Neuronal + Computer Vision + Gesture Control.**
 > Laboratorio web ultra-interactivo: manipula un **núcleo neuronal 3D** (plexus)
-> con las manos en tiempo real, desde el navegador. Estética **Jarvis morado**
+> con las manos en tiempo real, desde el navegador. Estética **Aecodito morado**
 > (violeta neón + azul eléctrico + negro premium) con HUD futurista estilo
 > Apple Vision Pro.
 
@@ -12,11 +12,14 @@
 
 - 🧠 **Núcleo neuronal 3D manipulable** (plexus de nodos + conexiones + pulsos de señal).
 - 🎛️ **Dos modos**:
-  - **Modo Jarvis** — solo el núcleo, **sin cámara**; lo controlas con el **mouse**.
+  - **Modo Aecodito** — solo el núcleo, **sin cámara**; lo controlas con el **mouse**.
   - **Modo Interactivo** — **cámara + manos**: manipulas la red con gestos reales.
 - 🖐️ **Detección de manos** en tiempo real (MediaPipe HandLandmarker, hasta 2 manos).
 - 🙂 **Detección facial** opcional (MediaPipe FaceDetector) con HUD de "rostro fijado".
-- 🟣 **HUD estilo Jarvis**: escáner circular, esquineros, retícula de tracking, partículas, ondas de energía, glow neón.
+- 🟣 **HUD futurista**: escáner circular, esquineros, retícula de tracking, partículas, ondas de energía, glow neón.
+- 🎨 La red **cambia de color según su posición**: morado oscuro al centro, RGB hacia los costados.
+- 🎚️ **Nivel de poder** (135–145) en cámara + **detección facial elegante** con tarjeta tipo scouter.
+- 👁️ **Vista limpia**: un botón oculta los paneles para máxima visibilidad del núcleo.
 - 🛟 **Fallback de mouse**: si la cámara o el modelo fallan, la demo sigue viva.
 - 🔒 **100% local**: el video nunca sale de tu equipo.
 
@@ -45,7 +48,7 @@ npm install      # instala dependencias
 npm run dev      # http://localhost:5173
 ```
 
-En la pantalla de inicio elige **Modo Jarvis** o **Modo Interactivo**.
+En la pantalla de inicio elige **Modo Aecodito** o **Modo Interactivo**.
 En modo cámara, permite el acceso cuando el navegador lo pida.
 
 ### Compilar / previsualizar
@@ -64,10 +67,10 @@ npm run preview  # sirve el build localmente
 
 | Modo | Cámara | Control | Ideal para |
 |------|:------:|---------|-----------|
-| **Jarvis** | ❌ | Mouse (click = agarrar, arrastrar = mover, rueda = escalar) | Mostrar el núcleo como un holograma en pantalla |
+| **Aecodito** | ❌ | Mouse (click = agarrar, arrastrar = mover, rueda = escalar) | Mostrar el núcleo como un holograma en pantalla |
 | **Interactivo** | ✅ | Manos (gestos) + detección facial opcional | Demo "wow" donde manipulas la red con las manos |
 
-Puedes **cambiar de modo en caliente** con el selector **Jarvis / Cámara** del HUD.
+Puedes **cambiar de modo en caliente** con el selector **Aecodito / Cámara** del HUD.
 
 ---
 
@@ -81,7 +84,7 @@ Puedes **cambiar de modo en caliente** con el selector **Jarvis / Cámara** del 
 | **Rotar** | Mueve la mano de lado mientras lo agarras | Gira el plexus |
 | **Energizar** | Pinch fuerte / sostenido | Más brillo y más señales viajando |
 
-En **Modo Jarvis** los mismos efectos se logran con **mouse** (click, arrastrar, rueda).
+En **Modo Aecodito** los mismos efectos se logran con **mouse** (click, arrastrar, rueda).
 El panel izquierdo se **enciende** mostrando el gesto activo.
 
 ---
@@ -90,7 +93,7 @@ El panel izquierdo se **enciende** mostrando el gesto activo.
 
 Actívala con el toggle **Rostro ON/OFF** (solo en Modo Interactivo). Dibuja una caja
 de "objetivo" con esquineros animados, línea de escaneo y los puntos clave del rostro
-(ojos, nariz, boca) — estilo Jarvis. El modelo se carga **bajo demanda** (solo cuando
+(ojos, nariz, boca) — estilo Aecodito. El modelo se carga **bajo demanda** (solo cuando
 lo activas) para no penalizar el arranque.
 
 ---
@@ -104,7 +107,7 @@ src/
 │  ├─ HandTracker.tsx     # overlay de landmarks / indicadores de tracking
 │  ├─ FaceTracker.tsx     # overlay de detección facial (HUD de objetivo)
 │  ├─ NeuralNetwork.tsx   # núcleo neuronal 3D (plexus) manipulable
-│  ├─ JarvisHUD.tsx       # HUD: escáner, retícula, telemetría, selector de modo
+│  ├─ AecoditoHUD.tsx       # HUD: escáner, retícula, telemetría, selector de modo
 │  ├─ GesturePanel.tsx    # leyenda de gestos con estado activo
 │  └─ ParticleField.tsx   # partículas + ondas de energía (Canvas 2D)
 ├─ hooks/

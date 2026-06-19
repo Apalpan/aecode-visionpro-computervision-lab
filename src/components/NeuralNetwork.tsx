@@ -145,6 +145,9 @@ export default function NeuralNetwork({ mv, box, ambient = false }: Props) {
       let rY: number
       let rot2d: number
       let energy: number
+      // Color por posición: morado oscuro al centro, RGB hacia los costados.
+      let hueShift = 0
+      let lum = 1
       if (ambient) {
         cx = W / 2
         cy = H / 2
@@ -161,6 +164,11 @@ export default function NeuralNetwork({ mv, box, ambient = false }: Props) {
         rY = base * mv.scaleY.get()
         rot2d = (mv.rotate.get() * Math.PI) / 180
         energy = mv.glow.get()
+        // dxc: -0.5 (izq) .. 0.5 (der). Centro = morado oscuro; costados = RGB.
+        const dxc = clamp01(cx / W) - 0.5
+        hueShift = dxc * 320
+        const distC = Math.min(1, Math.abs(dxc) * 2)
+        lum = 0.55 + distC * 0.45
       } else {
         cx = W / 2
         cy = H / 2
@@ -214,8 +222,8 @@ export default function NeuralNetwork({ mv, box, ambient = false }: Props) {
         const isBurst = a === CENTER || b === CENTER
         const alpha = (isBurst ? 0.12 : 0.2) * (0.35 + dn) * bright
         if (alpha <= 0.012) continue
-        const hue = isBurst ? 288 : 268 + dn * 34
-        ctx.strokeStyle = `hsla(${hue}, 92%, ${52 + dn * 22}%, ${alpha})`
+        const hue = (isBurst ? 288 : 268 + dn * 34) + hueShift
+        ctx.strokeStyle = `hsla(${hue}, 92%, ${(52 + dn * 22) * lum}%, ${alpha})`
         ctx.beginPath()
         ctx.moveTo(sx[a], sy[a])
         ctx.lineTo(sx[b], sy[b])
@@ -227,11 +235,11 @@ export default function NeuralNetwork({ mv, box, ambient = false }: Props) {
         const dn = dep[i]
         const size = 0.6 + dn * 1.9
         const a = (0.28 + dn * 0.62) * bright
-        ctx.fillStyle = `hsla(286, 90%, 72%, ${a * 0.45})`
+        ctx.fillStyle = `hsla(${286 + hueShift}, 90%, ${72 * lum}%, ${a * 0.45})`
         ctx.beginPath()
         ctx.arc(sx[i], sy[i], size * 2.6, 0, Math.PI * 2)
         ctx.fill()
-        ctx.fillStyle = `hsla(282, 96%, 80%, ${a})`
+        ctx.fillStyle = `hsla(${282 + hueShift}, 96%, ${80 * lum}%, ${a})`
         ctx.beginPath()
         ctx.arc(sx[i], sy[i], size, 0, Math.PI * 2)
         ctx.fill()
@@ -253,12 +261,13 @@ export default function NeuralNetwork({ mv, box, ambient = false }: Props) {
         const b = edges[s.e][1]
         const x = sx[a] + (sx[b] - sx[a]) * s.t
         const y = sy[a] + (sy[b] - sy[a]) * s.t
-        const hue = (s.e & 1) === 0 ? 282 : 248 // mezcla violeta / azul eléctrico
-        ctx.fillStyle = `hsla(${hue}, 100%, 82%, ${0.95 * bright})`
+        const hue = ((s.e & 1) === 0 ? 282 : 248) + hueShift // violeta / azul + desfase RGB
+        const sigLum = Math.max(0.78, lum)
+        ctx.fillStyle = `hsla(${hue}, 100%, ${82 * sigLum}%, ${0.95 * bright})`
         ctx.beginPath()
         ctx.arc(x, y, 1.9, 0, Math.PI * 2)
         ctx.fill()
-        ctx.fillStyle = `hsla(${hue}, 100%, 76%, ${0.4 * bright})`
+        ctx.fillStyle = `hsla(${hue}, 100%, ${76 * sigLum}%, ${0.4 * bright})`
         ctx.beginPath()
         ctx.arc(x, y, 5, 0, Math.PI * 2)
         ctx.fill()
@@ -267,9 +276,9 @@ export default function NeuralNetwork({ mv, box, ambient = false }: Props) {
       // ── Núcleo brillante (pulsa con la energía) ────────────────────────────
       const coreR = Math.max(2, rX * 0.18 * (1 + Math.sin(now / 300) * 0.12) + energy * rX * 0.12)
       const grd = ctx.createRadialGradient(cx, cy, 0, cx, cy, coreR * 3.2)
-      grd.addColorStop(0, `hsla(288, 100%, 82%, ${0.55 * bright})`)
-      grd.addColorStop(0.4, `hsla(282, 92%, 62%, ${0.2 * bright})`)
-      grd.addColorStop(1, 'hsla(280, 90%, 50%, 0)')
+      grd.addColorStop(0, `hsla(${288 + hueShift}, 100%, ${82 * lum}%, ${0.55 * bright})`)
+      grd.addColorStop(0.4, `hsla(${282 + hueShift}, 92%, ${62 * lum}%, ${0.2 * bright})`)
+      grd.addColorStop(1, `hsla(${280 + hueShift}, 90%, 50%, 0)`)
       ctx.fillStyle = grd
       ctx.beginPath()
       ctx.arc(cx, cy, coreR * 3.2, 0, Math.PI * 2)
