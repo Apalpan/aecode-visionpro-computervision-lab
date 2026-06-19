@@ -1,0 +1,189 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ════════════════════════════════════════════════════════════════════════
+   AECODE VisionPro · SISTEMA DE TOKENS (OKLCH)
+   Toda la paleta se deriva de --brand-hue. Re-tematizar = cambiar un número.
+   Tema: "Jarvis morado" — violeta neón + azul eléctrico + núcleo verde IA.
+   ════════════════════════════════════════════════════════════════════════ */
+:root {
+  --brand-hue: 285; /* violeta */
+
+  /* Lienzo */
+  --void: oklch(0.13 0.06 var(--brand-hue)); /* negro morado profundo */
+  --abyss: oklch(0.09 0.04 var(--brand-hue));
+
+  /* Acento principal — violeta neón */
+  --neon: oklch(0.68 0.24 var(--brand-hue));
+  --neon-soft: oklch(0.7 0.22 var(--brand-hue) / 0.55);
+  --neon-dim: oklch(0.6 0.18 var(--brand-hue) / 0.28);
+
+  /* Acento secundario — azul eléctrico (data / HUD) */
+  --electric: oklch(0.72 0.17 245);
+
+  /* Núcleo IA — verde (el ojo de Aecodito, energía) */
+  --core: oklch(0.86 0.19 165);
+
+  /* Texto */
+  --fg: oklch(0.97 0.012 var(--brand-hue));
+  --muted: oklch(0.72 0.03 var(--brand-hue));
+  --line: oklch(0.7 0.12 var(--brand-hue) / 0.18);
+
+  color-scheme: dark;
+}
+
+/* Fallback para navegadores sin OKLCH (Safari viejo, etc.) */
+@supports not (color: oklch(0 0 0)) {
+  :root {
+    --void: #15051f;
+    --abyss: #0c0314;
+    --neon: #a855f7;
+    --neon-soft: rgba(168, 85, 247, 0.55);
+    --neon-dim: rgba(124, 58, 237, 0.28);
+    --electric: #4aa8ff;
+    --core: #6cffae;
+    --fg: #f5f0fb;
+    --muted: #b7a6c8;
+    --line: rgba(168, 85, 247, 0.18);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--void);
+  color: var(--fg);
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow: hidden; /* la app es una experiencia a pantalla completa */
+  overscroll-behavior: none;
+}
+
+::selection {
+  background: var(--neon-soft);
+  color: white;
+}
+
+/* Numeración técnica monoespaciada y alineada */
+.tabular {
+  font-variant-numeric: tabular-nums;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+/* ── Superficie glass (glassmorphism premium) ───────────────────────────── */
+.glass {
+  background: linear-gradient(
+    160deg,
+    oklch(0.22 0.08 var(--brand-hue) / 0.55),
+    oklch(0.13 0.05 var(--brand-hue) / 0.4)
+  );
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  border: 1px solid var(--line);
+  box-shadow:
+    0 8px 40px -12px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.06);
+}
+@supports not (color: oklch(0 0 0)) {
+  .glass {
+    background: linear-gradient(160deg, rgba(60, 30, 90, 0.55), rgba(20, 8, 30, 0.4));
+  }
+}
+
+/* ── Malla técnica de fondo ─────────────────────────────────────────────── */
+.tech-grid {
+  background-image:
+    linear-gradient(var(--line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line) 1px, transparent 1px);
+  background-size: 56px 56px;
+}
+
+/* ── Texto con glow neón ────────────────────────────────────────────────── */
+.text-glow {
+  text-shadow: 0 0 18px var(--neon-soft);
+}
+.text-glow-core {
+  text-shadow: 0 0 16px var(--core);
+}
+
+/* ── Borde animado / scanline para video ────────────────────────────────── */
+.scanlines::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 3px,
+    oklch(0.5 0.1 var(--brand-hue) / 0.08) 3px,
+    oklch(0.5 0.1 var(--brand-hue) / 0.08) 4px
+  );
+}
+
+/* ── Barra de scroll fina (en paneles desbordables) ─────────────────────── */
+.thin-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.thin-scroll::-webkit-scrollbar-thumb {
+  background: var(--neon-dim);
+  border-radius: 99px;
+}
+
+/* ── Botón primario neón ────────────────────────────────────────────────── */
+.btn-neon {
+  position: relative;
+  isolation: isolate;
+  border-radius: 999px;
+  border: 1px solid var(--neon);
+  color: white;
+  background: linear-gradient(
+    180deg,
+    oklch(0.55 0.2 var(--brand-hue) / 0.35),
+    oklch(0.4 0.18 var(--brand-hue) / 0.15)
+  );
+  box-shadow:
+    0 0 0 1px var(--neon-dim),
+    0 0 50px -10px var(--neon-soft);
+  transition:
+    transform 0.16s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.16s ease,
+    filter 0.16s ease;
+}
+.btn-neon:hover {
+  filter: brightness(1.12);
+  box-shadow:
+    0 0 0 1px var(--neon),
+    0 0 70px -8px var(--neon-soft);
+}
+.btn-neon:active {
+  transform: scale(0.97);
+}
+.btn-neon:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px var(--void),
+    0 0 0 4px var(--neon);
+}
+
+/* Respeta a quien prefiere menos movimiento */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

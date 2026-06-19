@@ -1,0 +1,33 @@
+{
+  "name": "aecode-visionpro-computervision-lab",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "AECODE VisionPro Lab — laboratorio web de Computer Vision con tracking de manos en tiempo real y HUD futurista estilo Jarvis (morado neón). Manipula a Aecodito con gestos.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d dist"
+  },
+  "dependencies": {
+    "@mediapipe/tasks-vision": "^0.10.18",
+    "framer-motion": "^11.11.17",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.6",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.3",
+    "autoprefixer": "^10.4.20",
+    "gh-pages": "^6.2.0",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.15",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11"
+  }
+}

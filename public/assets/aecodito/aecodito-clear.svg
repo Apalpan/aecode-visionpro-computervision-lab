@@ -1,0 +1,30 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Aecodito</title>
+  <desc id="desc">Mascota robotica de AECODE con lente luminosa</desc>
+  <rect width="512" height="512" rx="64" fill="url(#bg)"/>
+  <circle cx="256" cy="166" r="108" fill="#F8FAFC"/>
+  <circle cx="256" cy="166" r="94" stroke="#CBD5E1" stroke-width="8"/>
+  <circle cx="256" cy="166" r="76" fill="#111827"/>
+  <circle cx="256" cy="166" r="54" fill="#1F2937" stroke="#64748B" stroke-width="5"/>
+  <circle cx="256" cy="166" r="23" fill="#6CFFAE"/>
+  <circle cx="256" cy="166" r="42" stroke="#6CFFAE" stroke-opacity=".32" stroke-width="3"/>
+  <circle cx="246" cy="154" r="7" fill="#FFFFFF" opacity=".85"/>
+  <rect x="230" y="267" width="52" height="46" rx="14" fill="#CBD5E1"/>
+  <path d="M148 310C162 284 196 270 256 270C316 270 350 284 364 310L394 438H118L148 310Z" fill="#F8FAFC" stroke="#334155" stroke-width="8"/>
+  <path d="M180 356C206 338 230 330 256 330C282 330 306 338 332 356" stroke="#CBD5E1" stroke-width="8" stroke-linecap="round"/>
+  <rect x="190" y="300" width="132" height="45" rx="18" fill="#0F172A" stroke="#334155" stroke-width="5"/>
+  <text x="256" y="329" text-anchor="middle" font-family="Outfit, Arial, sans-serif" font-size="22" font-weight="800" fill="#FFFFFF">AECODE</text>
+  <path d="M135 380L86 346C70 335 66 313 78 296C90 279 113 276 129 288L179 326" fill="#F8FAFC"/>
+  <path d="M377 380L426 346C442 335 446 313 434 296C422 279 399 276 383 288L333 326" fill="#F8FAFC"/>
+  <path d="M135 380L86 346C70 335 66 313 78 296C90 279 113 276 129 288L179 326" stroke="#334155" stroke-width="8" stroke-linecap="round"/>
+  <path d="M377 380L426 346C442 335 446 313 434 296C422 279 399 276 383 288L333 326" stroke="#334155" stroke-width="8" stroke-linecap="round"/>
+  <circle cx="93" cy="299" r="13" fill="#6CFFAE"/>
+  <circle cx="419" cy="299" r="13" fill="#6CFFAE"/>
+  <defs>
+    <radialGradient id="bg" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(256 226) rotate(90) scale(330)">
+      <stop stop-color="#7C3AED"/>
+      <stop offset=".55" stop-color="#35108F"/>
+      <stop offset="1" stop-color="#15051F"/>
+    </radialGradient>
+  </defs>
+</svg>
