@@ -143,8 +143,8 @@ export function useGestureControls(
         scaling = true
       }
 
-      // ── AGARRAR: pinch de UNA mano cerca del núcleo ─────────────────────────
-      const grabRadius = BOX * 0.5 * s.scale + 90
+      // ── AGARRAR: pinch de UNA mano cerca del núcleo (radio generoso) ────────
+      const grabRadius = BOX * 0.62 * s.scale + 130
       if (g.detected && g.handCount === 1 && g.isPinching) {
         if (!s.grabbed) {
           const d = Math.hypot(hx - s.x, hy - s.y)
@@ -155,9 +155,9 @@ export function useGestureControls(
       }
 
       if (s.grabbed) {
-        // MOVER: sigue a la mano
-        s.x = lerp(s.x, hx, 0.3)
-        s.y = lerp(s.y, hy, 0.3)
+        // MOVER: sigue a la mano (respuesta rápida → más susceptible de moverse)
+        s.x = lerp(s.x, hx, 0.55)
+        s.y = lerp(s.y, hy, 0.55)
         if (Math.abs(vxScreen) > 0.25) moving = true
         // ROTAR: inclina/gira según el movimiento lateral
         const tilt = clamp(vxScreen * 0.02, -28, 28)
@@ -166,9 +166,9 @@ export function useGestureControls(
         // ENERGIZAR
         s.energy = lerp(s.energy, 1, 0.12)
       } else {
-        // En reposo: deriva suave al centro + se estabiliza
-        s.x = lerp(s.x, anchorX, 0.02)
-        s.y = lerp(s.y, anchorY, 0.02)
+        // En reposo: deriva MUY suave al centro (se queda donde lo dejas)
+        s.x = lerp(s.x, anchorX, 0.012)
+        s.y = lerp(s.y, anchorY, 0.012)
         s.rotation = lerp(s.rotation, 0, 0.06)
         s.energy = lerp(s.energy, g.detected ? 0.22 + g.pinchStrength * 0.3 : 0.18, 0.06)
       }

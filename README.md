@@ -1,8 +1,8 @@
-# AECODE VisionPro Lab · Red Neuronal + Computer Vision
+# AECODE VisionPro Lab · Aecodito Brain + Computer Vision
 
-> **Red Neuronal + Computer Vision + Gesture Control.**
-> Laboratorio web ultra-interactivo: manipula un **núcleo neuronal 3D** (plexus)
-> con las manos en tiempo real, desde el navegador. Estética **Aecodito morado**
+> **Aecodito Brain + Computer Vision + Gesture Control.**
+> Laboratorio web ultra-interactivo: manipula a **Aecodito Brain** (un plexus 3D)
+> con las manos en tiempo real, desde el navegador. Estética **morada premium**
 > (violeta neón + azul eléctrico + negro premium) con HUD futurista estilo
 > Apple Vision Pro.
 
@@ -126,7 +126,7 @@ src/
 - **Vite + React + TypeScript + Tailwind** (tokens OKLCH derivados de `--brand-hue`)
 - **Framer Motion** (MotionValues → animación sin re-render)
 - **@mediapipe/tasks-vision** — `HandLandmarker` + `FaceDetector`
-- **Canvas 2D** para la red neuronal y los overlays (más ligero que WebGL aquí)
+- **Canvas 2D** para Aecodito Brain y los overlays (más ligero que WebGL aquí)
 
 ---
 

@@ -57,25 +57,29 @@ export default function HandTracker({ handsRef, mode, debug }: Props) {
         const lm = hand.landmarks
         if (!lm || lm.length < 21) continue
 
-        // Esqueleto (sólo debug)
-        if (debugRef.current) {
-          ctx.lineWidth = 2.5
-          ctx.strokeStyle = 'rgba(168,85,247,0.65)'
-          ctx.shadowColor = 'rgba(168,85,247,0.9)'
-          ctx.shadowBlur = 8
-          ctx.beginPath()
-          for (const [a, b] of HAND_CONNECTIONS) {
-            ctx.moveTo(px(lm[a].x), py(lm[a].y))
-            ctx.lineTo(px(lm[b].x), py(lm[b].y))
-          }
-          ctx.stroke()
-          ctx.shadowBlur = 0
+        // Esqueleto de la mano — SIEMPRE visible (detección de mano)
+        ctx.lineWidth = 2.5
+        ctx.strokeStyle = 'rgba(168,85,247,0.7)'
+        ctx.shadowColor = 'rgba(168,85,247,0.9)'
+        ctx.shadowBlur = 8
+        ctx.beginPath()
+        for (const [a, b] of HAND_CONNECTIONS) {
+          ctx.moveTo(px(lm[a].x), py(lm[a].y))
+          ctx.lineTo(px(lm[b].x), py(lm[b].y))
+        }
+        ctx.stroke()
+        ctx.shadowBlur = 0
 
-          for (let i = 0; i < lm.length; i++) {
-            ctx.beginPath()
-            ctx.arc(px(lm[i].x), py(lm[i].y), 3.2, 0, Math.PI * 2)
-            ctx.fillStyle = '#c084fc'
-            ctx.fill()
+        for (let i = 0; i < lm.length; i++) {
+          ctx.beginPath()
+          ctx.arc(px(lm[i].x), py(lm[i].y), debugRef.current ? 4 : 2.8, 0, Math.PI * 2)
+          ctx.fillStyle = '#c084fc'
+          ctx.fill()
+          // En debug: índice de cada landmark
+          if (debugRef.current) {
+            ctx.fillStyle = 'rgba(238,243,248,0.75)'
+            ctx.font = '9px "JetBrains Mono", monospace'
+            ctx.fillText(String(i), px(lm[i].x) + 6, py(lm[i].y) - 6)
           }
         }
 

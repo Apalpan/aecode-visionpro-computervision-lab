@@ -139,7 +139,7 @@ export default function FaceTracker({ facesRef, mode, powerRef }: Props) {
         ctx.textBaseline = 'middle'
         ctx.fillStyle = 'rgba(183,166,200,0.95)'
         ctx.font = '600 9px "JetBrains Mono", monospace'
-        ctx.fillText('NIVEL DE PODER', cardX + 26, cardY + 15)
+        ctx.fillText('POWER', cardX + 26, cardY + 15)
 
         ctx.fillStyle = '#eef0fb'
         ctx.font = '700 22px "Space Grotesk", system-ui, sans-serif'

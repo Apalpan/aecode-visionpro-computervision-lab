@@ -75,7 +75,7 @@ const LM = {
 
 // ── Parámetros de ajuste (tunables) ─────────────────────────────────────────
 const CFG = {
-  pinchThreshold: 0.55, // pinchStrength por encima de esto = agarrar
+  pinchThreshold: 0.45, // pinchStrength por encima de esto = agarrar (más sensible)
   velocitySmoothing: 0.35, // EMA de la velocidad (0=lento, 1=instantáneo)
   centerSmoothing: 0.45, // EMA del centro de la palma
   jumpVelocity: -1.25, // vy (norm/s) bajo este valor = salto (y crece hacia abajo)

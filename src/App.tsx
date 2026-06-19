@@ -193,8 +193,8 @@ export default function App() {
                 className="pointer-events-none absolute left-1/2 top-[26%] z-30 -translate-x-1/2 text-center font-mono text-xs uppercase tracking-[0.2em] text-neon/80"
               >
                 {isMouse
-                  ? 'Click para agarrar el núcleo · arrastra para mover · rueda para escalar'
-                  : 'Pellizca cerca de la red para agarrarla · abre la mano para escalar'}
+                  ? 'Click para agarrar Aecodito Brain · arrastra para mover · rueda para escalar'
+                  : 'Pellizca cerca de Aecodito Brain para agarrarlo · abre la mano para escalar'}
               </motion.p>
             )}
           </motion.div>
@@ -260,7 +260,7 @@ function Intro({ onAecodito, onCamera }: { onAecodito: () => void; onCamera: () 
           transition={{ duration: 0.6, delay: 0.25 }}
           className="mt-4 font-mono text-xs uppercase tracking-[0.22em] text-muted sm:text-sm"
         >
-          Red Neuronal + Computer Vision + Gesture Control
+          Aecodito Brain + Computer Vision + Gesture Control
         </motion.p>
 
         <motion.div
@@ -273,7 +273,7 @@ function Intro({ onAecodito, onCamera }: { onAecodito: () => void; onCamera: () 
             onClick={onAecodito}
             accent="neon"
             title="Modo Aecodito"
-            desc="Solo el núcleo neuronal. Sin cámara. Contrólalo con el mouse: click para agarrar, arrastra para mover, rueda para escalar."
+            desc="Solo Aecodito Brain. Sin cámara. Contrólalo con el mouse: click para agarrar, arrastra para mover, rueda para escalar."
             icon={
               <>
                 <circle cx="12" cy="12" r="3" />
@@ -285,7 +285,7 @@ function Intro({ onAecodito, onCamera }: { onAecodito: () => void; onCamera: () 
             onClick={onCamera}
             accent="electric"
             title="Modo Interactivo"
-            desc="Cámara + manos. Manipula la red con gestos reales (pinch, mover, escalar) y activa la detección facial."
+            desc="Cámara + manos. Manipula Aecodito Brain con gestos reales (pinch, mover, escalar) y activa la detección facial."
             icon={
               <>
                 <path d="M23 7l-7 5 7 5V7z" />

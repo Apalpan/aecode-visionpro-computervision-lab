@@ -85,7 +85,7 @@ export default function JarvisHUD({
             <div className="font-display text-sm font-semibold tracking-wide text-ink">
               VisionPro <span className="text-neon">Lab</span>
             </div>
-            <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted">Red Neuronal</div>
+            <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted">Aecodito Brain</div>
           </div>
         </motion.div>
 
@@ -176,7 +176,7 @@ export default function JarvisHUD({
             <div className="flex items-center justify-between gap-4">
               <div>
                 <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted">
-                  Estado de la red neuronal
+                  Estado de Aecodito Brain
                 </div>
                 <div
                   className={`font-display text-xl font-bold sm:text-2xl ${
@@ -205,7 +205,7 @@ export default function JarvisHUD({
 }
 
 function statusLabel(status: TrackingStatus, mode: TrackingMode, view: ViewMode): string {
-  if (view === 'aecodito') return 'NÚCLEO AECODITO'
+  if (view === 'aecodito') return 'AECODITO BRAIN'
   if (mode === 'mouse') return 'AI VISION · MOUSE'
   switch (status) {
     case 'requesting-camera':
@@ -235,7 +235,7 @@ function PowerLevel({ value }: { value: number }) {
     >
       <div className="glass flex items-center gap-3 rounded-2xl px-5 py-2.5">
         <div className="text-right leading-none">
-          <div className="font-mono text-[8.5px] uppercase tracking-[0.26em] text-muted">Nivel de poder</div>
+          <div className="font-mono text-[9px] uppercase tracking-[0.3em] text-muted">Power</div>
           <div className="tabular font-display text-[26px] font-bold text-ink text-glow">{Math.round(value)}</div>
         </div>
         <div className="h-9 w-px bg-line" />
