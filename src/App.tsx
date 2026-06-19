@@ -1,7 +1,8 @@
 /**
  * App — orquestador de AECODE VisionPro Lab.
- *  · Pantalla de inicio (intro) con Aecodito + CTA "Activar cámara".
- *  · Experiencia activa: cámara + tracking + Aecodito manipulable + HUD.
+ *  · Inicio: eliges MODO JARVIS (solo el núcleo neuronal, sin cámara, mouse) o
+ *    MODO INTERACTIVO (cámara + manos + detección facial).
+ *  · Activo: red neuronal manipulable + HUD; puedes cambiar de modo en caliente.
  */
 import { useCallback, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -11,13 +12,16 @@ import { assets, onImgError } from './lib/assetFinder'
 import CameraVision from './components/CameraVision'
 import ParticleField from './components/ParticleField'
 import NeuralNetwork from './components/NeuralNetwork'
+import FaceTracker from './components/FaceTracker'
 import JarvisHUD from './components/JarvisHUD'
 import GesturePanel from './components/GesturePanel'
 
 type Phase = 'intro' | 'active'
+export type ViewMode = 'jarvis' | 'camera'
 
 export default function App() {
   const [phase, setPhase] = useState<Phase>('intro')
+  const [view, setView] = useState<ViewMode>('camera')
   const [debug, setDebug] = useState(false)
   const tracking = useHandTracking()
   const { mv, telemetry, reticleRef, BOX } = useGestureControls(
@@ -26,24 +30,44 @@ export default function App() {
     phase === 'active',
   )
 
-  const activateCamera = useCallback(async () => {
-    setPhase('active')
-    await tracking.start()
-  }, [tracking])
-
-  const activateMouse = useCallback(() => {
+  const startJarvis = useCallback(() => {
+    setView('jarvis')
     setPhase('active')
     tracking.startMouse()
   }, [tracking])
 
-  const stop = useCallback(() => {
+  const startCamera = useCallback(async () => {
+    setView('camera')
+    setPhase('active')
+    await tracking.start()
+  }, [tracking])
+
+  const switchMode = useCallback(
+    async (target: ViewMode) => {
+      if (target === view) return
+      if (target === 'jarvis') {
+        tracking.stop()
+        setView('jarvis')
+        tracking.startMouse()
+      } else {
+        setView('camera')
+        await tracking.start()
+      }
+    },
+    [tracking, view],
+  )
+
+  const exit = useCallback(() => {
     tracking.stop()
     setPhase('intro')
   }, [tracking])
 
   const initializing =
     phase === 'active' &&
+    view === 'camera' &&
     (tracking.status === 'requesting-camera' || tracking.status === 'loading-model')
+
+  const isMouse = tracking.mode === 'mouse'
 
   return (
     <main
@@ -53,12 +77,11 @@ export default function App() {
           'radial-gradient(120% 90% at 50% -10%, oklch(0.22 0.12 285 / 0.6), transparent 60%), var(--void)',
       }}
     >
-      {/* Malla técnica de fondo siempre presente */}
       <div className="tech-grid pointer-events-none absolute inset-0 opacity-[0.12]" />
 
       <AnimatePresence mode="wait">
         {phase === 'intro' ? (
-          <Intro key="intro" onCamera={activateCamera} onMouse={activateMouse} />
+          <Intro key="intro" onJarvis={startJarvis} onCamera={startCamera} />
         ) : (
           <motion.div
             key="active"
@@ -76,16 +99,23 @@ export default function App() {
             />
             <ParticleField mv={mv} box={BOX} />
             <NeuralNetwork mv={mv} box={BOX} />
-            <GesturePanel telemetry={telemetry} />
+            {view === 'camera' && tracking.faceEnabled && (
+              <FaceTracker facesRef={tracking.facesRef} mode={tracking.mode} />
+            )}
+            <GesturePanel telemetry={telemetry} mouse={isMouse} />
             <JarvisHUD
               telemetry={telemetry}
               reticleRef={reticleRef}
               status={tracking.status}
               mode={tracking.mode}
+              view={view}
               fps={tracking.fps}
               debug={debug}
+              faceEnabled={tracking.faceEnabled}
               onToggleDebug={() => setDebug((d) => !d)}
-              onStop={stop}
+              onToggleFace={() => tracking.setFaceEnabled(!tracking.faceEnabled)}
+              onSwitchMode={switchMode}
+              onStop={exit}
             />
 
             {/* Loader de inicialización */}
@@ -109,7 +139,7 @@ export default function App() {
               )}
             </AnimatePresence>
 
-            {/* Aviso de fallback (cámara/modelo no disponible) */}
+            {/* Aviso de fallback */}
             <AnimatePresence>
               {tracking.error && (
                 <motion.div
@@ -123,16 +153,17 @@ export default function App() {
               )}
             </AnimatePresence>
 
-            {/* Hint inicial de gestos */}
+            {/* Hint inicial */}
             <motion.p
+              key={view + String(isMouse)}
               initial={{ opacity: 0 }}
               animate={{ opacity: [0, 1, 1, 0] }}
-              transition={{ duration: 6, times: [0, 0.1, 0.85, 1], delay: 1 }}
-              className="pointer-events-none absolute left-1/2 top-1/3 z-30 -translate-x-1/2 text-center font-mono text-xs uppercase tracking-[0.2em] text-core/80"
+              transition={{ duration: 6, times: [0, 0.1, 0.85, 1], delay: 0.8 }}
+              className="pointer-events-none absolute left-1/2 top-[26%] z-30 -translate-x-1/2 text-center font-mono text-xs uppercase tracking-[0.2em] text-neon/80"
             >
-              {tracking.mode === 'mouse'
-                ? 'Mueve el cursor · mantén click para agarrar'
-                : 'Muestra tu mano a la cámara'}
+              {isMouse
+                ? 'Click para agarrar el núcleo · arrastra para mover · rueda para escalar'
+                : 'Pellizca cerca de la red para agarrarla · abre la mano para escalar'}
             </motion.p>
           </motion.div>
         )}
@@ -142,33 +173,28 @@ export default function App() {
 }
 
 /* ════════════════════════════════════════════════════════════════════════
-   Pantalla de inicio
+   Pantalla de inicio con selector de modo
    ════════════════════════════════════════════════════════════════════════ */
-function Intro({ onCamera, onMouse }: { onCamera: () => void; onMouse: () => void }) {
+function Intro({ onJarvis, onCamera }: { onJarvis: () => void; onCamera: () => void }) {
   return (
     <motion.section
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0, scale: 0.98 }}
       transition={{ duration: 0.6 }}
-      className="absolute inset-0 grid place-items-center px-6"
+      className="absolute inset-0 grid place-items-center overflow-y-auto px-6 py-10"
     >
-      {/* Escáner ambiental detrás de Aecodito */}
+      {/* Escáner ambiental detrás de la red */}
       <div
         aria-hidden
-        className="pointer-events-none absolute left-1/2 top-[34%] -translate-x-1/2 -translate-y-1/2"
+        className="pointer-events-none absolute left-1/2 top-[30%] -translate-x-1/2 -translate-y-1/2"
         style={{ width: 'min(70vmin,520px)', height: 'min(70vmin,520px)', opacity: 0.5 }}
       >
         <div className="absolute inset-0 animate-spin-slow rounded-full border border-dashed border-neon/30" />
         <div className="absolute inset-[10%] animate-spin-reverse rounded-full border border-electric/20" />
-        <div
-          className="absolute inset-[4%] rounded-full"
-          style={{ background: 'radial-gradient(circle, var(--neon-soft), transparent 65%)', opacity: 0.45 }}
-        />
       </div>
 
-      <div className="relative z-10 flex w-full max-w-2xl flex-col items-center text-center">
-        {/* Logo */}
+      <div className="relative z-10 flex w-full max-w-3xl flex-col items-center text-center">
         <motion.img
           src={assets.logo}
           onError={onImgError}
@@ -176,7 +202,7 @@ function Intro({ onCamera, onMouse }: { onCamera: () => void; onMouse: () => voi
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
-          className="mb-8 h-7 w-auto opacity-90 drop-shadow-[0_0_14px_var(--neon-soft)] sm:h-8"
+          className="mb-6 h-7 w-auto opacity-90 drop-shadow-[0_0_14px_var(--neon-soft)] sm:h-8"
         />
 
         {/* Red neuronal (hero) */}
@@ -184,17 +210,16 @@ function Intro({ onCamera, onMouse }: { onCamera: () => void; onMouse: () => voi
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
-          className="relative mb-2"
+          className="relative"
         >
-          <NeuralNetwork box={320} ambient />
+          <NeuralNetwork box={300} ambient />
         </motion.div>
 
-        {/* Título */}
         <motion.h1
           initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.15 }}
-          className="text-balance font-display text-4xl font-bold leading-[1.05] tracking-tight text-ink sm:text-6xl"
+          className="-mt-2 text-balance font-display text-4xl font-bold leading-[1.05] tracking-tight text-ink sm:text-6xl"
         >
           AECODE <span className="text-neon text-glow">VisionPro</span> Lab
         </motion.h1>
@@ -205,38 +230,47 @@ function Intro({ onCamera, onMouse }: { onCamera: () => void; onMouse: () => voi
           transition={{ duration: 0.6, delay: 0.25 }}
           className="mt-4 font-mono text-xs uppercase tracking-[0.22em] text-muted sm:text-sm"
         >
-          Computer Vision + Gesture Interaction + AI Interface
+          Red Neuronal + Computer Vision + Gesture Control
         </motion.p>
 
-        {/* CTA */}
+        {/* Selector de modo */}
         <motion.div
-          initial={{ opacity: 0, y: 14 }}
+          initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.35 }}
-          className="mt-9 flex flex-col items-center gap-4"
+          className="mt-9 grid w-full max-w-2xl grid-cols-1 gap-4 sm:grid-cols-2"
         >
-          <button onClick={onCamera} className="btn-neon flex items-center gap-3 px-8 py-4 font-display text-base font-semibold">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M23 7l-7 5 7 5V7z" />
-              <rect x="1" y="5" width="15" height="14" rx="2" />
-            </svg>
-            Activar cámara
-          </button>
-
-          <button
-            onClick={onMouse}
-            className="font-mono text-xs uppercase tracking-[0.16em] text-muted underline-offset-4 transition hover:text-ink hover:underline"
-          >
-            Probar sin cámara (modo mouse) →
-          </button>
+          <ModeCard
+            onClick={onJarvis}
+            accent="neon"
+            title="Modo Jarvis"
+            desc="Solo el núcleo neuronal. Sin cámara. Contrólalo con el mouse: click para agarrar, arrastra para mover, rueda para escalar."
+            icon={
+              <>
+                <circle cx="12" cy="12" r="3" />
+                <path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1" />
+              </>
+            }
+          />
+          <ModeCard
+            onClick={onCamera}
+            accent="electric"
+            title="Modo Interactivo"
+            desc="Cámara + manos. Manipula la red con gestos reales (pinch, mover, escalar) y activa la detección facial."
+            icon={
+              <>
+                <path d="M23 7l-7 5 7 5V7z" />
+                <rect x="1" y="5" width="15" height="14" rx="2" />
+              </>
+            }
+          />
         </motion.div>
 
-        {/* Aviso de privacidad */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.6, delay: 0.5 }}
-          className="mt-10 flex max-w-sm items-center gap-2.5 rounded-full border border-line bg-white/[0.03] px-4 py-2.5"
+          className="mt-8 flex max-w-md items-center gap-2.5 rounded-full border border-line bg-white/[0.03] px-4 py-2.5"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--core)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
             <rect x="3" y="11" width="18" height="11" rx="2" />
@@ -248,5 +282,45 @@ function Intro({ onCamera, onMouse }: { onCamera: () => void; onMouse: () => voi
         </motion.div>
       </div>
     </motion.section>
+  )
+}
+
+function ModeCard({
+  onClick,
+  title,
+  desc,
+  icon,
+  accent,
+}: {
+  onClick: () => void
+  title: string
+  desc: string
+  icon: React.ReactNode
+  accent: 'neon' | 'electric'
+}) {
+  const color = accent === 'neon' ? 'var(--neon)' : 'var(--electric)'
+  return (
+    <button
+      onClick={onClick}
+      className="glass group relative flex flex-col items-start gap-3 rounded-2xl p-5 text-left transition will-change-transform hover:-translate-y-1"
+      style={{ boxShadow: '0 8px 40px -12px rgba(0,0,0,.6)' }}
+    >
+      <span
+        className="flex h-11 w-11 items-center justify-center rounded-xl border transition group-hover:scale-105"
+        style={{ borderColor: color, color, boxShadow: `0 0 24px -6px ${color}` }}
+      >
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+          {icon}
+        </svg>
+      </span>
+      <span className="font-display text-lg font-bold text-ink">{title}</span>
+      <span className="text-[12.5px] leading-snug text-muted">{desc}</span>
+      <span
+        className="mt-1 inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-[0.18em]"
+        style={{ color }}
+      >
+        Entrar →
+      </span>
+    </button>
   )
 }

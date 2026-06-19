@@ -1,44 +1,42 @@
 /**
- * GesturePanel — panel lateral con la lista de gestos.
- *  Cada gesto se ENCIENDE (glow núcleo) cuando está activo según la telemetría.
- *  Sirve de leyenda interactiva para la demo pública.
+ * GesturePanel — panel lateral con la lista de gestos para manipular la red.
+ *  Cada gesto se ENCIENDE (glow) cuando está activo según la telemetría.
+ *  Los textos de ayuda cambian según el modo (manos vs mouse).
  */
 import { motion } from 'framer-motion'
 import type { Telemetry } from '../hooks/useGestureControls'
 
 interface Props {
   telemetry: Telemetry
+  mouse: boolean
 }
 
 interface GestureDef {
   id: string
   label: string
-  hint: string
+  hand: string
+  mouse: string
   icon: React.ReactNode
   active: (t: Telemetry) => boolean
 }
 
 const I = {
-  pinch: (
-    <path d="M7 14c0-3 2-5 5-5s5 2 5 5M9 14l3-3 3 3" />
-  ),
+  pinch: <path d="M7 14c0-3 2-5 5-5s5 2 5 5M9 14l3-3 3 3" />,
   move: <path d="M12 4v16M4 12h16M9 7l3-3 3 3M9 17l3 3 3-3M7 9l-3 3 3 3M17 9l3 3-3 3" />,
   scale: <path d="M4 9V4h5M20 15v5h-5M4 4l6 6M20 20l-6-6" />,
-  squash: <path d="M4 8h16M6 12h12M9 16h6M12 20l-3-3M12 20l3-3" />,
-  jump: <path d="M12 21V8M8 12l4-4 4 4M6 4h12" />,
-  walk: <path d="M9 4l2 5-2 6M13 7l1 5 3 4M11 9l4-1" />,
+  rotate: <path d="M21 12a9 9 0 1 1-3-6.7M21 3v5h-5" />,
+  bolt: <path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z" />,
 }
 
 const GESTURES: GestureDef[] = [
-  { id: 'grab', label: 'Agarrar', hint: 'Pinch pulgar + índice', icon: I.pinch, active: (t) => t.grabbed || t.action === 'grab' },
-  { id: 'move', label: 'Mover', hint: 'Arrastra con la mano', icon: I.move, active: (t) => t.action === 'move' },
-  { id: 'scale', label: 'Escalar', hint: 'Abre la mano o usa 2', icon: I.scale, active: (t) => t.action === 'scale' || t.handCount >= 2 },
-  { id: 'squash', label: 'Aplastar', hint: 'Empuja hacia abajo', icon: I.squash, active: (t) => t.action === 'squash' },
-  { id: 'jump', label: 'Saltar', hint: 'Sube la mano rápido', icon: I.jump, active: (t) => t.action === 'jump' },
-  { id: 'walk', label: 'Caminar', hint: 'Mueve la mano de lado', icon: I.walk, active: (t) => t.action === 'walk' || t.walking },
+  { id: 'grab', label: 'Agarrar', hand: 'Pinch pulgar + índice', mouse: 'Click sostenido', icon: I.pinch, active: (t) => t.grabbed },
+  { id: 'move', label: 'Mover', hand: 'Arrastra el núcleo', mouse: 'Arrastra con el mouse', icon: I.move, active: (t) => t.moving },
+  { id: 'scale', label: 'Escalar / Zoom', hand: 'Abre la mano o usa 2', mouse: 'Rueda del mouse', icon: I.scale, active: (t) => t.scaling },
+  { id: 'rotate', label: 'Rotar', hand: 'Gira la mano agarrando', mouse: 'Arrastra de lado', icon: I.rotate, active: (t) => t.rotating },
+  { id: 'energize', label: 'Energizar', hand: 'Pinch fuerte', mouse: 'Mantén presionado', icon: I.bolt, active: (t) => t.energized },
 ]
 
-export default function GesturePanel({ telemetry }: Props) {
+export default function GesturePanel({ telemetry, mouse }: Props) {
   return (
     <motion.div
       initial={{ opacity: 0, x: -20 }}
@@ -65,27 +63,19 @@ export default function GesturePanel({ telemetry }: Props) {
               >
                 <span
                   className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border"
-                  style={{
-                    borderColor: on ? 'var(--core)' : 'var(--line)',
-                    color: on ? 'var(--core)' : 'var(--muted)',
-                  }}
+                  style={{ borderColor: on ? 'var(--core)' : 'var(--line)', color: on ? 'var(--core)' : 'var(--muted)' }}
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                     {g.icon}
                   </svg>
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className={`block text-sm font-semibold ${on ? 'text-core' : 'text-ink'}`}>
-                    {g.label}
-                  </span>
-                  <span className="block truncate font-mono text-[10px] text-muted">{g.hint}</span>
+                  <span className={`block text-sm font-semibold ${on ? 'text-core' : 'text-ink'}`}>{g.label}</span>
+                  <span className="block truncate font-mono text-[10px] text-muted">{mouse ? g.mouse : g.hand}</span>
                 </span>
                 <span
                   className="h-2 w-2 shrink-0 rounded-full transition"
-                  style={{
-                    background: on ? 'var(--core)' : 'var(--line)',
-                    boxShadow: on ? '0 0 10px var(--core)' : 'none',
-                  }}
+                  style={{ background: on ? 'var(--core)' : 'var(--line)', boxShadow: on ? '0 0 10px var(--core)' : 'none' }}
                 />
               </li>
             )

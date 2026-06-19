@@ -1,23 +1,29 @@
 /**
- * useGestureControls — convierte señales de gesto en FÍSICA de Aecodito.
+ * useGestureControls — convierte señales de gesto en FÍSICA del núcleo neuronal.
+ *
+ *  El núcleo es un objeto FLOTANTE tipo "Jarvis" (sin gravedad): reposa cerca
+ *  del centro, respira/flota y, al agarrarlo (pinch), lo sigues, escalas y rotas.
+ *  Al soltarlo regresa suavemente al centro.
  *
  *  Corre su propio bucle a ~60fps:
  *    1. Lee las manos (handsRef) y las pasa al GestureEngine.
- *    2. Simula posición/velocidad/escala/squash de Aecodito (gravedad, salto,
- *       caminar, rebote al aterrizar, agarre con seguimiento de la mano).
- *    3. Escribe MotionValues de Framer Motion → el avatar se anima SIN provocar
- *       re-renders de React (clave para mantener 60fps).
+ *    2. Simula posición/escala/rotación/energía del núcleo.
+ *    3. Escribe MotionValues de Framer Motion → la red se anima SIN re-render.
  *    4. Publica `telemetry` (estado de React, baja frecuencia) para el HUD.
  *
- *  El espejado horizontal se aplica aquí (sólo en modo cámara) para que mover
- *  la mano a la derecha mueva a Aecodito a la derecha (vista selfie).
+ *  Gestos soportados:
+ *    · Agarrar  → pinch de una mano cerca del núcleo
+ *    · Mover    → arrastrar mientras lo agarras
+ *    · Escalar  → dos manos (separación) o una mano abierta
+ *    · Rotar    → mover la mano de lado mientras lo agarras
+ *    · Energizar→ pinch fuerte (sube energía y actividad neuronal)
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMotionValue, type MotionValue } from 'framer-motion'
 import { GestureEngine, clamp, lerp, type HandSample } from '../lib/gestureEngine'
 import type { TrackingMode } from './useHandTracking'
 
-export type AecoditoAction = 'idle' | 'grab' | 'move' | 'scale' | 'squash' | 'jump' | 'walk'
+export type CoreAction = 'idle' | 'grab' | 'move' | 'scale' | 'rotate' | 'energize'
 
 export interface Telemetry {
   detected: boolean
@@ -25,13 +31,13 @@ export interface Telemetry {
   pinch: number
   confidence: number
   scale: number
-  action: AecoditoAction
+  action: CoreAction
   grabbed: boolean
   energy: number
-  vx: number
-  vy: number
-  walking: boolean
-  openness: number
+  moving: boolean
+  scaling: boolean
+  rotating: boolean
+  energized: boolean
 }
 
 export interface GestureMotion {
@@ -51,17 +57,10 @@ export interface Reticle {
   pinch: number
 }
 
-const BOX = 300 // tamaño base del objeto en px (caja contenedora)
+const BOX = 320 // tamaño base del núcleo en px (caja contenedora)
 
-// Centro inicial razonable para evitar un "flash" en la esquina antes del 1er frame
 const initX = typeof window !== 'undefined' ? window.innerWidth / 2 - BOX / 2 : 0
-const initY = typeof window !== 'undefined' ? window.innerHeight * 0.6 - BOX / 2 : 0
-
-// Constantes de física (px, segundos)
-const GRAVITY = 2600
-const JUMP_IMPULSE = 1180
-const WALK_SPEED = 250
-const LAND_SQUASH_VELOCITY = 700
+const initY = typeof window !== 'undefined' ? window.innerHeight / 2 - BOX / 2 : 0
 
 export function useGestureControls(
   handsRef: React.MutableRefObject<HandSample[]>,
@@ -74,7 +73,7 @@ export function useGestureControls(
     scaleX: useMotionValue(1),
     scaleY: useMotionValue(1),
     rotate: useMotionValue(0),
-    glow: useMotionValue(0),
+    glow: useMotionValue(0.18),
     eye: useMotionValue(0.5),
   }
 
@@ -87,20 +86,14 @@ export function useGestureControls(
   modeRef.current = mode
   activeRef.current = active
 
-  // Estado de física persistente (sin re-render)
   const sim = useRef({
     x: 0,
     y: 0,
-    vy: 0,
     scale: 1,
-    squash: 0,
     rotation: 0,
     grabbed: false,
-    energy: 0,
-    walkPhase: 0,
-    grounded: true,
+    energy: 0.18,
     initialized: false,
-    action: 'idle' as AecoditoAction,
     lastTelemetry: 0,
   })
 
@@ -121,129 +114,92 @@ export function useGestureControls(
 
       const W = window.innerWidth
       const H = window.innerHeight
-      const ground = H * 0.6
+      const anchorX = W / 2
+      const anchorY = H / 2
       const s = sim.current
 
       if (!s.initialized) {
-        s.x = W * 0.5
-        s.y = ground
+        s.x = anchorX
+        s.y = anchorY
         s.initialized = true
       }
 
       const g = engine.update(handsRef.current, now)
       const mirror = modeRef.current === 'mediapipe'
 
-      // Mano en coordenadas de pantalla
       const hx = (mirror ? 1 - g.handCenter.x : g.handCenter.x) * W
       const hy = g.handCenter.y * H
       const vxScreen = (mirror ? -g.handVelocity.x : g.handVelocity.x) * W
       reticleRef.current = { x: hx, y: hy, visible: g.detected, pinch: g.pinchStrength }
 
-      let action: AecoditoAction = 'idle'
+      let moving = false
+      let scaling = false
+      let rotating = false
 
-      // Escala objetivo (siempre que haya mano)
-      if (g.detected) {
-        s.scale = lerp(s.scale, g.scaleFactor, 0.12)
+      // ── ESCALAR: dos manos (separación) o una mano abierta sin agarrar ──────
+      const canScale = g.detected && (g.handCount >= 2 || (!s.grabbed && g.openness > 0.42))
+      if (canScale) {
+        s.scale = lerp(s.scale, clamp(g.scaleFactor, 0.35, 3.0), 0.13)
+        scaling = true
       }
 
-      // ── AGARRE ───────────────────────────────────────────────────────────
-      const grabRadius = 150 * s.scale + 60
-      if (g.isPinching && g.detected) {
+      // ── AGARRAR: pinch de UNA mano cerca del núcleo ─────────────────────────
+      const grabRadius = BOX * 0.5 * s.scale + 90
+      if (g.detected && g.handCount === 1 && g.isPinching) {
         if (!s.grabbed) {
           const d = Math.hypot(hx - s.x, hy - s.y)
           if (d < grabRadius) s.grabbed = true
         }
-      } else {
+      } else if (!g.isPinching || g.handCount >= 2) {
         s.grabbed = false
       }
 
       if (s.grabbed) {
-        // Sigue a la mano
-        s.x = lerp(s.x, hx, 0.28)
-        s.y = lerp(s.y, hy, 0.28)
-        s.vy = 0
-        s.grounded = false
-        s.rotation = lerp(s.rotation, clamp(vxScreen * 0.02, -22, 22), 0.18)
+        // MOVER: sigue a la mano
+        s.x = lerp(s.x, hx, 0.3)
+        s.y = lerp(s.y, hy, 0.3)
+        if (Math.abs(vxScreen) > 0.25) moving = true
+        // ROTAR: inclina/gira según el movimiento lateral
+        const tilt = clamp(vxScreen * 0.02, -28, 28)
+        s.rotation = lerp(s.rotation, tilt, 0.16)
+        if (Math.abs(s.rotation) > 5) rotating = true
+        // ENERGIZAR
         s.energy = lerp(s.energy, 1, 0.12)
-        // Aplastar mientras se sostiene (empuje hacia abajo)
-        const sq = clamp(g.squashFactor, 0, 1)
-        s.squash = lerp(s.squash, sq * 0.8, 0.2)
-        const moving = Math.abs(vxScreen) > 0.25 || Math.abs(g.handVelocity.y) > 0.25
-        action = sq > 0.35 ? 'squash' : moving ? 'move' : 'grab'
       } else {
-        // ── Sin agarre: gravedad + suelo ────────────────────────────────────
-        s.vy += GRAVITY * dt
-        s.y += s.vy * dt
-
-        if (s.y >= ground) {
-          if (s.vy > LAND_SQUASH_VELOCITY && !reduced.current) {
-            s.squash = Math.min(1, s.vy / 1600) // rebote de aterrizaje
-          }
-          s.y = ground
-          s.vy = 0
-          s.grounded = true
-        } else {
-          s.grounded = false
-        }
-
-        // SALTAR
-        if (g.jumpTrigger && s.grounded) {
-          s.vy = -JUMP_IMPULSE
-          s.grounded = false
-          action = 'jump'
-        }
-
-        // CAMINAR (oscilación lateral en el suelo)
-        if (g.walking && s.grounded) {
-          s.x += WALK_SPEED * g.walkDirection * (mirror ? -1 : 1) * dt
-          s.walkPhase += dt * 11
-          s.rotation = lerp(s.rotation, Math.sin(s.walkPhase) * 9, 0.3)
-          action = 'walk'
-        } else {
-          s.rotation = lerp(s.rotation, 0, 0.1)
-        }
-
-        // APLASTAR (empuje hacia abajo con la mano abierta sobre él)
-        if (g.detected && g.squashFactor > 0.15 && s.grounded) {
-          s.squash = lerp(s.squash, clamp(g.squashFactor, 0, 1), 0.25)
-          action = 'squash'
-        } else {
-          s.squash = lerp(s.squash, 0, 0.12)
-        }
-
-        // ESCALAR (mano muy abierta o dos manos separándose)
-        if (action === 'idle' && g.detected && (g.openness > 0.55 || g.handCount >= 2)) {
-          action = 'scale'
-        }
-
-        if (!s.grounded && action === 'idle') action = 'jump'
-        s.energy = lerp(s.energy, g.detected ? 0.25 + g.pinchStrength * 0.4 : 0, 0.08)
+        // En reposo: deriva suave al centro + se estabiliza
+        s.x = lerp(s.x, anchorX, 0.02)
+        s.y = lerp(s.y, anchorY, 0.02)
+        s.rotation = lerp(s.rotation, 0, 0.06)
+        s.energy = lerp(s.energy, g.detected ? 0.22 + g.pinchStrength * 0.3 : 0.18, 0.06)
       }
 
-      // Limita a la pantalla
-      s.x = clamp(s.x, BOX * 0.25, W - BOX * 0.25)
-      s.y = clamp(s.y, BOX * 0.2, H - BOX * 0.1)
-      s.scale = clamp(s.scale, 0.4, 2.8)
-      s.squash = clamp(s.squash, 0, 1)
-      s.action = action
+      // Límites de pantalla y escala
+      s.x = clamp(s.x, BOX * 0.3, W - BOX * 0.3)
+      s.y = clamp(s.y, BOX * 0.28, H - BOX * 0.28)
+      s.scale = clamp(s.scale, 0.35, 3.0)
 
-      // Flotación idle (sutil, sin tocar la posición física)
-      const idleBob =
-        !reduced.current && s.grounded && !s.grabbed && action === 'idle'
-          ? Math.sin(now / 700) * 7
-          : 0
-      const breathe = action === 'idle' ? 1 + Math.sin(now / 1100) * 0.012 : 1
+      const energized = s.energy > 0.7
 
-      // ── Escribe MotionValues ────────────────────────────────────────────
+      let action: CoreAction = 'idle'
+      if (scaling) action = 'scale'
+      else if (s.grabbed && moving) action = 'move'
+      else if (rotating) action = 'rotate'
+      else if (s.grabbed) action = 'grab'
+      else if (energized) action = 'energize'
+
+      // Flotación / respiración (idle)
+      const idleBob = !reduced.current && !s.grabbed ? Math.sin(now / 800) * 6 : 0
+      const breathe = !s.grabbed ? 1 + Math.sin(now / 1500) * 0.02 : 1
+
       mv.x.set(s.x - BOX / 2)
       mv.y.set(s.y - BOX / 2 + idleBob)
-      mv.scaleX.set(s.scale * (1 + 0.3 * s.squash) * breathe)
-      mv.scaleY.set(s.scale * (1 - 0.45 * s.squash) * breathe)
+      const sc = s.scale * breathe
+      mv.scaleX.set(sc)
+      mv.scaleY.set(sc)
       mv.rotate.set(s.rotation)
       mv.glow.set(s.energy)
-      mv.eye.set(0.45 + Math.sin(now / 320) * 0.25 + s.energy * 0.3)
+      mv.eye.set(0.5)
 
-      // ── Telemetría para el HUD (~12fps) ─────────────────────────────────
       if (now - s.lastTelemetry > 80) {
         s.lastTelemetry = now
         setTelemetry({
@@ -252,13 +208,13 @@ export function useGestureControls(
           pinch: g.pinchStrength,
           confidence: g.confidence,
           scale: s.scale,
-          action: s.action,
+          action,
           grabbed: s.grabbed,
           energy: s.energy,
-          vx: g.handVelocity.x,
-          vy: g.handVelocity.y,
-          walking: g.walking,
-          openness: g.openness,
+          moving,
+          scaling,
+          rotating,
+          energized,
         })
       }
 
@@ -270,7 +226,6 @@ export function useGestureControls(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [engine])
 
-  // Reinicia la física al activar/desactivar
   useEffect(() => {
     if (active) {
       engine.reset()
@@ -290,10 +245,10 @@ function initTelemetry(): Telemetry {
     scale: 1,
     action: 'idle',
     grabbed: false,
-    energy: 0,
-    vx: 0,
-    vy: 0,
-    walking: false,
-    openness: 0,
+    energy: 0.18,
+    moving: false,
+    scaling: false,
+    rotating: false,
+    energized: false,
   }
 }

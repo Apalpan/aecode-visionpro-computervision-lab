@@ -1,38 +1,39 @@
 /**
  * JarvisHUD — interfaz HUD futurista (estilo Jarvis / Vision Pro).
  *
- *  Capas:
- *   · Barra superior: logo AECODE + título + badge "AI VISION ACTIVE" + fps.
- *   · Esquineros técnicos + escáner circular giratorio (ambiente).
- *   · Retícula que sigue la mano en tiempo real (sin re-render).
- *   · Panel inferior de telemetría: acción actual, confianza, manos, pinch…
- *   · Controles: debug y apagar.
+ *  Capas: barra superior (logo + selector de modo + toggles), esquineros,
+ *  escáner circular, retícula que sigue la mano, y panel de telemetría.
  */
 import { useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { assets, onImgError } from '../lib/assetFinder'
-import type { Reticle as ReticleData, Telemetry, AecoditoAction } from '../hooks/useGestureControls'
+import type { Reticle as ReticleData, Telemetry, CoreAction } from '../hooks/useGestureControls'
 import type { TrackingMode, TrackingStatus } from '../hooks/useHandTracking'
+
+type ViewMode = 'jarvis' | 'camera'
 
 interface Props {
   telemetry: Telemetry
   reticleRef: React.MutableRefObject<ReticleData>
   status: TrackingStatus
   mode: TrackingMode
+  view: ViewMode
   fps: number
   debug: boolean
+  faceEnabled: boolean
   onToggleDebug: () => void
+  onToggleFace: () => void
+  onSwitchMode: (target: ViewMode) => void
   onStop: () => void
 }
 
-const ACTION_LABEL: Record<AecoditoAction, string> = {
+const ACTION_LABEL: Record<CoreAction, string> = {
   idle: 'EN ESPERA',
   grab: 'AGARRANDO',
   move: 'MOVIENDO',
   scale: 'ESCALANDO',
-  squash: 'APLASTANDO',
-  jump: 'SALTANDO',
-  walk: 'CAMINANDO',
+  rotate: 'ROTANDO',
+  energize: 'ENERGIZANDO',
 }
 
 export default function JarvisHUD({
@@ -40,13 +41,15 @@ export default function JarvisHUD({
   reticleRef,
   status,
   mode,
+  view,
   fps,
   debug,
+  faceEnabled,
   onToggleDebug,
+  onToggleFace,
+  onSwitchMode,
   onStop,
 }: Props) {
-  const isFallback = mode === 'mouse'
-
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 30, pointerEvents: 'none' }}>
       <Scanner />
@@ -54,7 +57,7 @@ export default function JarvisHUD({
       <Reticle reticleRef={reticleRef} />
 
       {/* ── Barra superior ───────────────────────────────────────────────── */}
-      <div className="absolute left-0 right-0 top-0 flex items-start justify-between p-4 sm:p-6">
+      <div className="absolute left-0 right-0 top-0 flex items-start justify-between gap-3 p-4 sm:p-6">
         <motion.div
           initial={{ opacity: 0, y: -12 }}
           animate={{ opacity: 1, y: 0 }}
@@ -67,13 +70,13 @@ export default function JarvisHUD({
             alt="AECODE"
             className="h-6 w-auto opacity-95 drop-shadow-[0_0_10px_var(--neon-soft)] sm:h-7"
           />
-          <div className="hidden sm:block h-7 w-px bg-line" />
-          <div className="hidden sm:block leading-tight">
+          <div className="hidden h-7 w-px bg-line sm:block" />
+          <div className="hidden leading-tight sm:block">
             <div className="font-display text-sm font-semibold tracking-wide text-ink">
               VisionPro <span className="text-neon">Lab</span>
             </div>
             <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted">
-              Computer Vision
+              Red Neuronal
             </div>
           </div>
         </motion.div>
@@ -82,19 +85,35 @@ export default function JarvisHUD({
           initial={{ opacity: 0, y: -12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
-          className="flex items-center gap-2"
+          className="flex max-w-[70vw] flex-wrap items-center justify-end gap-2"
           style={{ pointerEvents: 'auto' }}
         >
-          {/* Badge AI VISION ACTIVE */}
+          {/* Badge de estado */}
           <div className="glass flex items-center gap-2 rounded-full px-3 py-1.5">
             <span className="relative flex h-2.5 w-2.5">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-core opacity-70" />
               <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-core shadow-core" />
             </span>
             <span className="font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-core">
-              {statusLabel(status, isFallback)}
+              {statusLabel(status, mode, view)}
             </span>
           </div>
+
+          {/* Selector de modo */}
+          <ModeSwitch view={view} onSwitch={onSwitchMode} />
+
+          {/* Toggle de rostro (solo en cámara) */}
+          {view === 'camera' && (
+            <button
+              onClick={onToggleFace}
+              aria-pressed={faceEnabled}
+              className={`glass rounded-full px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] transition ${
+                faceEnabled ? 'text-electric shadow-neon' : 'text-muted hover:text-ink'
+              }`}
+            >
+              Rostro {faceEnabled ? 'ON' : 'OFF'}
+            </button>
+          )}
 
           <button
             onClick={onToggleDebug}
@@ -108,7 +127,7 @@ export default function JarvisHUD({
 
           <button
             onClick={onStop}
-            aria-label="Apagar cámara"
+            aria-label="Salir"
             className="glass rounded-full px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-muted transition hover:text-ink"
           >
             ✕ Salir
@@ -144,10 +163,9 @@ export default function JarvisHUD({
             </div>
           </div>
 
-          {/* Barras */}
           <div className="mt-3 grid grid-cols-2 gap-3 sm:gap-5">
             <Meter label="Confianza" value={telemetry.confidence} accent="electric" />
-            <Meter label="Pinch" value={telemetry.pinch} accent="core" />
+            <Meter label="Energía" value={telemetry.energy} accent="core" />
           </div>
         </div>
       </motion.div>
@@ -155,8 +173,9 @@ export default function JarvisHUD({
   )
 }
 
-function statusLabel(status: TrackingStatus, fallback: boolean): string {
-  if (fallback) return 'AI VISION · MOUSE'
+function statusLabel(status: TrackingStatus, mode: TrackingMode, view: ViewMode): string {
+  if (view === 'jarvis') return 'NÚCLEO JARVIS'
+  if (mode === 'mouse') return 'AI VISION · MOUSE'
   switch (status) {
     case 'requesting-camera':
       return 'SOLICITANDO CÁMARA'
@@ -169,6 +188,36 @@ function statusLabel(status: TrackingStatus, fallback: boolean): string {
     default:
       return 'STANDBY'
   }
+}
+
+function ModeSwitch({ view, onSwitch }: { view: ViewMode; onSwitch: (t: ViewMode) => void }) {
+  const items: Array<{ id: ViewMode; label: string }> = [
+    { id: 'jarvis', label: 'Jarvis' },
+    { id: 'camera', label: 'Cámara' },
+  ]
+  return (
+    <div className="glass flex items-center rounded-full p-0.5">
+      {items.map((it) => {
+        const on = view === it.id
+        return (
+          <button
+            key={it.id}
+            onClick={() => onSwitch(it.id)}
+            className={`rounded-full px-3 py-1 font-mono text-[10px] uppercase tracking-[0.14em] transition ${
+              on ? 'text-ink' : 'text-muted hover:text-ink'
+            }`}
+            style={
+              on
+                ? { background: 'color-mix(in oklab, var(--neon) 22%, transparent)', boxShadow: '0 0 0 1px var(--neon-dim)' }
+                : undefined
+            }
+          >
+            {it.label}
+          </button>
+        )
+      })}
+    </div>
+  )
 }
 
 function Stat({ label, value }: { label: string; value: string }) {
@@ -198,7 +247,7 @@ function Meter({ label, value, accent }: { label: string; value: number; accent:
   )
 }
 
-/* ── Retícula que sigue la mano (actualizada por rAF, sin re-render) ─────── */
+/* ── Retícula que sigue la mano (rAF, sin re-render) ─────────────────────── */
 function Reticle({ reticleRef }: { reticleRef: React.MutableRefObject<ReticleData> }) {
   const ref = useRef<HTMLDivElement>(null)
   const ringRef = useRef<HTMLDivElement>(null)
@@ -240,26 +289,17 @@ function Reticle({ reticleRef }: { reticleRef: React.MutableRefObject<ReticleDat
         willChange: 'transform, opacity',
       }}
     >
-      {/* cruz */}
       <div style={{ position: 'absolute', left: '50%', top: 0, bottom: 0, width: 1, background: 'var(--neon-dim)', transform: 'translateX(-50%)' }} />
       <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, height: 1, background: 'var(--neon-dim)', transform: 'translateY(-50%)' }} />
-      {/* anillo */}
       <div
         ref={ringRef}
-        style={{
-          position: 'absolute',
-          inset: 0,
-          borderRadius: '50%',
-          border: '2px solid var(--neon)',
-          boxShadow: '0 0 16px var(--neon-soft)',
-        }}
+        style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '2px solid var(--neon)', boxShadow: '0 0 16px var(--neon-soft)' }}
       />
       <div style={{ position: 'absolute', left: '50%', top: '50%', width: 5, height: 5, borderRadius: '50%', background: 'var(--core)', transform: 'translate(-50%,-50%)', boxShadow: '0 0 10px var(--core)' }} />
     </div>
   )
 }
 
-/* ── Escáner circular giratorio (ambiente) ──────────────────────────────── */
 function Scanner() {
   return (
     <div
@@ -278,16 +318,14 @@ function Scanner() {
   )
 }
 
-/* ── Esquineros técnicos ─────────────────────────────────────────────────── */
 function CornerBrackets() {
-  const base =
-    'absolute h-10 w-10 border-neon/40'
+  const base = 'absolute h-10 w-10 border-neon/40'
   return (
     <div aria-hidden className="absolute inset-3 sm:inset-5">
-      <div className={`${base} left-0 top-0 border-l-2 border-t-2 rounded-tl-lg`} />
-      <div className={`${base} right-0 top-0 border-r-2 border-t-2 rounded-tr-lg`} />
-      <div className={`${base} bottom-0 left-0 border-b-2 border-l-2 rounded-bl-lg`} />
-      <div className={`${base} bottom-0 right-0 border-b-2 border-r-2 rounded-br-lg`} />
+      <div className={`${base} left-0 top-0 rounded-tl-lg border-l-2 border-t-2`} />
+      <div className={`${base} right-0 top-0 rounded-tr-lg border-r-2 border-t-2`} />
+      <div className={`${base} bottom-0 left-0 rounded-bl-lg border-b-2 border-l-2`} />
+      <div className={`${base} bottom-0 right-0 rounded-br-lg border-b-2 border-r-2`} />
     </div>
   )
 }

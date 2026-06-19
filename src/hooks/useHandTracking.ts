@@ -1,19 +1,22 @@
 /**
- * useHandTracking — enciende la cámara y corre MediaPipe HandLandmarker.
+ * useHandTracking — enciende la cámara y corre MediaPipe en el navegador.
  *
- *  · Modo principal: detección REAL de manos en el navegador (Chrome ✓).
- *  · Fallback robusto: si la cámara o el modelo fallan, cambia a MODO MOUSE
- *    generando una mano sintética alrededor del cursor (la demo nunca muere).
+ *  · Manos: HandLandmarker (21 landmarks, hasta 2 manos) → control de gestos.
+ *  · Rostro: FaceDetector (caja + puntos clave), activable con un toggle.
+ *  · Fallback robusto: si la cámara o el modelo fallan → MODO MOUSE (mano
+ *    sintética alrededor del cursor). La demo nunca muere.
  *
- *  Expone `handsRef` (mutable, sin re-render) que el controlador de gestos
- *  lee cada frame, más estado de React para la UI (status, fps, mode, error).
+ *  Todo el procesamiento es LOCAL en el navegador (privacidad: no se sube video).
+ *  Expone refs mutables (sin re-render) que los overlays leen cada frame.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { makePointerHand, type HandSample } from '../lib/gestureEngine'
 
 const WASM_CDN = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/wasm'
-const MODEL_URL =
+const HAND_MODEL =
   'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task'
+const FACE_MODEL =
+  'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite'
 
 export type TrackingStatus =
   | 'idle'
@@ -25,13 +28,26 @@ export type TrackingStatus =
 
 export type TrackingMode = 'mediapipe' | 'mouse'
 
+/** Rostro detectado, en coordenadas NORMALIZADAS 0..1 (sin espejar). */
+export interface FaceSample {
+  x: number
+  y: number
+  w: number
+  h: number
+  score: number
+  keypoints: Array<{ x: number; y: number }>
+}
+
 export interface HandTracking {
   videoRef: React.RefObject<HTMLVideoElement>
   handsRef: React.MutableRefObject<HandSample[]>
+  facesRef: React.MutableRefObject<FaceSample[]>
   status: TrackingStatus
   mode: TrackingMode
   fps: number
   error: string | null
+  faceEnabled: boolean
+  setFaceEnabled: (v: boolean) => void
   start: () => Promise<void>
   startMouse: () => void
   stop: () => void
@@ -40,22 +56,32 @@ export interface HandTracking {
 export function useHandTracking(): HandTracking {
   const videoRef = useRef<HTMLVideoElement>(null)
   const handsRef = useRef<HandSample[]>([])
+  const facesRef = useRef<FaceSample[]>([])
 
   const [status, setStatus] = useState<TrackingStatus>('idle')
   const [mode, setMode] = useState<TrackingMode>('mediapipe')
   const [fps, setFps] = useState(0)
   const [error, setError] = useState<string | null>(null)
+  const [faceEnabled, setFaceEnabled] = useState(false)
 
   // Refs internos (no provocan re-render)
   const landmarkerRef = useRef<any>(null)
+  const faceDetectorRef = useRef<any>(null)
+  const filesetRef = useRef<any>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const rafRef = useRef<number | null>(null)
   const lastVideoTimeRef = useRef(-1)
   const fpsRef = useRef({ frames: 0, last: performance.now() })
 
-  // Estado del puntero para el fallback de mouse
+  // Estado del puntero (fallback de mouse)
   const pointerRef = useRef({ x: 0.5, y: 0.5, pinch: false, spread: 0.4 })
   const pointerBoundRef = useRef(false)
+
+  // Refs espejo de estado para usar dentro del loop sin recrearlo
+  const faceEnabledRef = useRef(faceEnabled)
+  faceEnabledRef.current = faceEnabled
+  const statusRef = useRef(status)
+  statusRef.current = status
 
   // ── Bucle de detección con MediaPipe ──────────────────────────────────────
   const detectLoop = useCallback(() => {
@@ -65,8 +91,11 @@ export function useHandTracking(): HandTracking {
 
     if (video.readyState >= 2 && video.currentTime !== lastVideoTimeRef.current) {
       lastVideoTimeRef.current = video.currentTime
+      const ts = performance.now()
+
+      // Manos
       try {
-        const res = landmarker.detectForVideo(video, performance.now())
+        const res = landmarker.detectForVideo(video, ts)
         const out: HandSample[] = []
         const lists = res?.landmarks ?? []
         const handed = res?.handednesses ?? res?.handedness ?? []
@@ -80,11 +109,32 @@ export function useHandTracking(): HandTracking {
         }
         handsRef.current = out
       } catch {
-        // un frame fallido no debe tumbar el loop
+        /* un frame fallido no debe tumbar el loop */
+      }
+
+      // Rostro (sólo si está activado y el detector está listo)
+      if (faceEnabledRef.current && faceDetectorRef.current) {
+        try {
+          const fr = faceDetectorRef.current.detectForVideo(video, ts + 0.01)
+          const vw = video.videoWidth || 1280
+          const vh = video.videoHeight || 720
+          facesRef.current = (fr?.detections ?? []).map((d: any) => ({
+            x: (d.boundingBox?.originX ?? 0) / vw,
+            y: (d.boundingBox?.originY ?? 0) / vh,
+            w: (d.boundingBox?.width ?? 0) / vw,
+            h: (d.boundingBox?.height ?? 0) / vh,
+            score: d.categories?.[0]?.score ?? 1,
+            keypoints: (d.keypoints ?? []).map((k: any) => ({ x: k.x, y: k.y })),
+          }))
+        } catch {
+          /* idem */
+        }
+      } else if (facesRef.current.length) {
+        facesRef.current = []
       }
     }
 
-    // FPS (actualizamos el estado ~2 veces por segundo)
+    // FPS (~2 veces por segundo)
     const now = performance.now()
     fpsRef.current.frames++
     if (now - fpsRef.current.last >= 500) {
@@ -100,6 +150,7 @@ export function useHandTracking(): HandTracking {
   const enableMouseFallback = useCallback(() => {
     setMode('mouse')
     setStatus('fallback')
+    facesRef.current = []
 
     if (!pointerBoundRef.current) {
       pointerBoundRef.current = true
@@ -116,7 +167,6 @@ export function useHandTracking(): HandTracking {
       window.addEventListener('pointerdown', onDown)
       window.addEventListener('pointerup', onUp)
       window.addEventListener('wheel', onWheel, { passive: true })
-      // guardamos los removers en el ref del stream-cleanup mediante closure
       ;(pointerBoundRef as any).cleanup = () => {
         window.removeEventListener('pointermove', onMove)
         window.removeEventListener('pointerdown', onDown)
@@ -133,7 +183,7 @@ export function useHandTracking(): HandTracking {
     loop()
   }, [])
 
-  // ── Encender ──────────────────────────────────────────────────────────────
+  // ── Encender (cámara + modelo de manos) ───────────────────────────────────
   const start = useCallback(async () => {
     setError(null)
 
@@ -156,15 +206,16 @@ export function useHandTracking(): HandTracking {
       return
     }
 
-    // 2) Modelo de IA (MediaPipe Tasks Vision)
+    // 2) Modelo de manos (MediaPipe Tasks Vision)
     try {
       setStatus('loading-model')
       const vision = await import('@mediapipe/tasks-vision')
       const { HandLandmarker, FilesetResolver } = vision
       const fileset = await FilesetResolver.forVisionTasks(WASM_CDN)
+      filesetRef.current = fileset
 
       const makeOptions = (delegate: 'GPU' | 'CPU') => ({
-        baseOptions: { modelAssetPath: MODEL_URL, delegate },
+        baseOptions: { modelAssetPath: HAND_MODEL, delegate },
         runningMode: 'VIDEO' as const,
         numHands: 2,
         minHandDetectionConfidence: 0.5,
@@ -183,12 +234,42 @@ export function useHandTracking(): HandTracking {
     } catch (err) {
       console.warn('[VisionPro] Modelo de manos no cargó, usando fallback de mouse:', err)
       setError('El modelo de IA no se pudo cargar (¿sin conexión?). Activado modo mouse.')
-      // Apaga la cámara: en modo mouse no la usamos (y se apaga el indicador).
       streamRef.current?.getTracks().forEach((t) => t.stop())
       streamRef.current = null
       enableMouseFallback()
     }
   }, [detectLoop, enableMouseFallback])
+
+  // ── Crear el detector facial bajo demanda ─────────────────────────────────
+  useEffect(() => {
+    let cancelled = false
+    if (faceEnabled && mode === 'mediapipe' && status === 'tracking' && !faceDetectorRef.current) {
+      ;(async () => {
+        try {
+          const vision = await import('@mediapipe/tasks-vision')
+          const fileset = filesetRef.current ?? (await vision.FilesetResolver.forVisionTasks(WASM_CDN))
+          filesetRef.current = fileset
+          const opts = (delegate: 'GPU' | 'CPU') => ({
+            baseOptions: { modelAssetPath: FACE_MODEL, delegate },
+            runningMode: 'VIDEO' as const,
+          })
+          let fd: any
+          try {
+            fd = await vision.FaceDetector.createFromOptions(fileset, opts('GPU'))
+          } catch {
+            fd = await vision.FaceDetector.createFromOptions(fileset, opts('CPU'))
+          }
+          if (!cancelled) faceDetectorRef.current = fd
+          else fd?.close?.()
+        } catch (err) {
+          console.warn('[VisionPro] No se pudo cargar el detector facial:', err)
+        }
+      })()
+    }
+    return () => {
+      cancelled = true
+    }
+  }, [faceEnabled, mode, status])
 
   // ── Apagar ──────────────────────────────────────────────────────────────
   const stop = useCallback(() => {
@@ -198,16 +279,18 @@ export function useHandTracking(): HandTracking {
     streamRef.current = null
     try {
       landmarkerRef.current?.close?.()
+      faceDetectorRef.current?.close?.()
     } catch {
       /* noop */
     }
     landmarkerRef.current = null
+    faceDetectorRef.current = null
     handsRef.current = []
+    facesRef.current = []
     lastVideoTimeRef.current = -1
     setStatus('idle')
   }, [])
 
-  // Limpieza al desmontar
   useEffect(() => {
     return () => {
       stop()
@@ -215,5 +298,18 @@ export function useHandTracking(): HandTracking {
     }
   }, [stop])
 
-  return { videoRef, handsRef, status, mode, fps, error, start, startMouse: enableMouseFallback, stop }
+  return {
+    videoRef,
+    handsRef,
+    facesRef,
+    status,
+    mode,
+    fps,
+    error,
+    faceEnabled,
+    setFaceEnabled,
+    start,
+    startMouse: enableMouseFallback,
+    stop,
+  }
 }
