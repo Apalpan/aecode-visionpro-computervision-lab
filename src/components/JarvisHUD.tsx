@@ -127,7 +127,7 @@ export default function JarvisHUD({
           <div className="flex items-center justify-between gap-4">
             <div>
               <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted">
-                Estado de Aecodito
+                Estado de la red neuronal
               </div>
               <div
                 className={`font-display text-xl font-bold sm:text-2xl ${

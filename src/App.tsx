@@ -10,7 +10,7 @@ import { useGestureControls } from './hooks/useGestureControls'
 import { assets, onImgError } from './lib/assetFinder'
 import CameraVision from './components/CameraVision'
 import ParticleField from './components/ParticleField'
-import AecoditoAvatar from './components/AecoditoAvatar'
+import NeuralNetwork from './components/NeuralNetwork'
 import JarvisHUD from './components/JarvisHUD'
 import GesturePanel from './components/GesturePanel'
 
@@ -75,7 +75,7 @@ export default function App() {
               debug={debug}
             />
             <ParticleField mv={mv} box={BOX} />
-            <AecoditoAvatar mv={mv} box={BOX} />
+            <NeuralNetwork mv={mv} box={BOX} />
             <GesturePanel telemetry={telemetry} />
             <JarvisHUD
               telemetry={telemetry}
@@ -179,20 +179,14 @@ function Intro({ onCamera, onMouse }: { onCamera: () => void; onMouse: () => voi
           className="mb-8 h-7 w-auto opacity-90 drop-shadow-[0_0_14px_var(--neon-soft)] sm:h-8"
         />
 
-        {/* Aecodito */}
+        {/* Red neuronal (hero) */}
         <motion.div
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+          transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
           className="relative mb-2"
         >
-          <img
-            src={assets.aecoditoPng}
-            onError={onImgError}
-            alt="Aecodito"
-            className="animate-float h-44 w-44 object-contain drop-shadow-[0_18px_50px_var(--neon-soft)] sm:h-56 sm:w-56"
-            style={{ filter: 'drop-shadow(0 0 40px rgba(108,255,174,0.25))' }}
-          />
+          <NeuralNetwork box={320} ambient />
         </motion.div>
 
         {/* Título */}

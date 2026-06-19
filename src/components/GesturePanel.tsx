@@ -49,7 +49,7 @@ export default function GesturePanel({ telemetry }: Props) {
     >
       <div className="glass thin-scroll w-60 rounded-2xl p-3">
         <div className="mb-2 px-1 font-mono text-[10px] uppercase tracking-[0.2em] text-muted">
-          Gestos · Computer Vision
+          Manipular red neuronal
         </div>
         <ul className="space-y-1.5">
           {GESTURES.map((g) => {

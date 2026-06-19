@@ -51,7 +51,11 @@ export interface Reticle {
   pinch: number
 }
 
-const BOX = 260 // tamaño base del avatar en px (caja contenedora)
+const BOX = 300 // tamaño base del objeto en px (caja contenedora)
+
+// Centro inicial razonable para evitar un "flash" en la esquina antes del 1er frame
+const initX = typeof window !== 'undefined' ? window.innerWidth / 2 - BOX / 2 : 0
+const initY = typeof window !== 'undefined' ? window.innerHeight * 0.6 - BOX / 2 : 0
 
 // Constantes de física (px, segundos)
 const GRAVITY = 2600
@@ -65,8 +69,8 @@ export function useGestureControls(
   active: boolean,
 ) {
   const mv: GestureMotion = {
-    x: useMotionValue(0),
-    y: useMotionValue(0),
+    x: useMotionValue(initX),
+    y: useMotionValue(initY),
     scaleX: useMotionValue(1),
     scaleY: useMotionValue(1),
     rotate: useMotionValue(0),
